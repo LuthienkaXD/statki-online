@@ -1,8 +1,90 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LETTERS, NUMBERS, getFleetStyle } from '../utils/rules';
-import { Crosshair, Shield, Flame, Send, RotateCcw, Trophy, Skull, Check, Copy } from 'lucide-react';
+import { Crosshair, Shield, Flame, Send, RotateCcw, Trophy, Skull, Check, Copy, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
+
+// Visual drawn ship component that darkens upon sinking
+function DrawnShip({ size, isSunk, fleetStyle }) {
+  return (
+    <div
+      className={`inline-flex items-center gap-0.5 p-0.5 sm:p-1 rounded-md transition-all duration-300 border ${
+        isSunk
+          ? 'bg-slate-900 border-slate-950 shadow-inner'
+          : 'bg-slate-100/90 border-slate-300 shadow-2xs'
+      }`}
+      title={`${size}-masztowiec: ${isSunk ? 'ZATOPIONY' : 'Na wodzie'}`}
+    >
+      <div className="flex space-x-0.5">
+        {Array.from({ length: size }).map((_, i) => (
+          <div
+            key={i}
+            style={!isSunk ? fleetStyle?.style : {}}
+            className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-xs border flex items-center justify-center transition-all duration-300 ${
+              isSunk
+                ? 'bg-slate-950 border-slate-900 text-rose-500'
+                : 'shadow-2xs'
+            }`}
+          >
+            {isSunk ? (
+              <span className="text-[8px] sm:text-[9px] font-black leading-none text-rose-500 select-none">✕</span>
+            ) : (
+              <div className="w-1 h-1 rounded-full bg-white/80"></div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Visual overview of the fleet with 10 drawn ships
+function FleetDrawnOverview({ sunkShips = [], fleetStyle, title }) {
+  const sunkCounts = { 4: 0, 3: 0, 2: 0, 1: 0 };
+  sunkShips.forEach(s => {
+    if (s && s.size) {
+      sunkCounts[s.size] = (sunkCounts[s.size] || 0) + 1;
+    }
+  });
+
+  const fleetConfig = [
+    { size: 4, count: 1, label: '4-maszt' },
+    { size: 3, count: 2, label: '3-maszt' },
+    { size: 2, count: 3, label: '2-maszt' },
+    { size: 1, count: 4, label: '1-maszt' },
+  ];
+
+  const totalSunk = sunkShips.length;
+
+  return (
+    <div className="w-full mt-3 pt-3 border-t border-slate-200">
+      <div className="flex items-center justify-between text-xs mb-2">
+        <span className="font-semibold text-slate-700">{title || 'Stan floty:'}</span>
+        <span className="font-mono text-[11px] text-slate-500">
+          Zatopione: <strong className="text-slate-900 font-bold">{totalSunk}/10</strong>
+        </span>
+      </div>
+      
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+        {fleetConfig.map(group => (
+          <div key={group.size} className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+            <span className="text-[10px] font-mono font-bold text-slate-600 mr-0.5">{group.label}:</span>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: group.count }).map((_, idx) => (
+                <DrawnShip
+                  key={idx}
+                  size={group.size}
+                  isSunk={idx < (sunkCounts[group.size] || 0)}
+                  fleetStyle={fleetStyle}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function GameView({
   gameState,
@@ -93,10 +175,10 @@ export default function GameView({
         cellClass = 'bg-rose-500 border-rose-600 animate-hit-pop shadow-xs text-white';
       }
     } else if (cellState === 'miss') {
-      cellClass = 'bg-slate-100 border-slate-200';
+      cellClass = 'bg-slate-200/90 border-slate-400 cursor-not-allowed shadow-inner';
     } else if (unhitShip) {
       // Semi-transparent ghost ship for unhit enemy ships after game finishes
-      cellClass = 'border-2 border-dashed border-slate-400 shadow-2xs';
+      cellClass = 'border-2 border-dashed border-slate-500/70 shadow-2xs';
       inlineStyle = {
         ...enemyFleetStyle.style,
         opacity: 0.45
@@ -118,9 +200,9 @@ export default function GameView({
           <Flame className="w-4 h-4 text-amber-200 drop-shadow fill-amber-300" />
         )}
 
-        {/* Red X on empty fields (misses and auto-marked water) */}
+        {/* Bold black X on empty fields (misses and auto-marked water) */}
         {cellState === 'miss' && (
-          <span className="text-red-600 font-extrabold text-xs select-none drop-shadow-2xs">✕</span>
+          <X className="w-4 h-4 sm:w-5 sm:h-5 text-black stroke-[3.5] select-none drop-shadow-xs" />
         )}
 
         {/* Ghost indicator on surviving unhit ships */}
@@ -132,6 +214,7 @@ export default function GameView({
   };
 
   // Render cell on own board
+  const isLoser = isGameOver && !isWinner;
   const renderMyCell = (r, c) => {
     const shot = me?.shotsGrid[r][c]; // null, 'miss', 'hit'
 
@@ -145,10 +228,19 @@ export default function GameView({
     if (myShip) {
       if (myShip.sunk) {
         bgStyle = 'bg-rose-950 border-rose-900 text-white';
+      } else if (isLoser) {
+        // Loser's unsunk ships are displayed semi-transparently
+        bgStyle = 'border-2 border-dashed border-slate-500/70 shadow-2xs text-white';
+        inlineStyle = {
+          ...myFleetStyle.style,
+          opacity: 0.45
+        };
       } else {
         bgStyle = 'border-transparent text-white shadow-2xs';
         inlineStyle = myFleetStyle.style;
       }
+    } else if (shot === 'miss') {
+      bgStyle = 'bg-slate-200/90 border-slate-400 shadow-inner';
     }
 
     return (
@@ -160,8 +252,8 @@ export default function GameView({
         {shot === 'hit' ? (
           <Flame className="w-4 h-4 text-rose-300 animate-pulse fill-rose-500" />
         ) : shot === 'miss' ? (
-          /* Red X on empty squares on own board as well */
-          <span className="text-red-600 font-extrabold text-xs select-none drop-shadow-2xs">✕</span>
+          /* Bold black X on empty squares on own board as well */
+          <X className="w-4 h-4 sm:w-5 sm:h-5 text-black stroke-[3.5] select-none drop-shadow-xs" />
         ) : myShip ? (
           <div className="w-1.5 h-1.5 rounded-full bg-white/80"></div>
         ) : null}
@@ -221,9 +313,9 @@ export default function GameView({
 
             <p className="text-xs text-slate-600 mt-0.5">
               {isGameOver
-                ? 'Obie plansze pozostają w pełni widoczne. Nieodkryte statki wyświetlają się w trybie półprześwitującym.'
+                ? 'Obie plansze bitwy pozostają w pełni widoczne. Niezatopione statki u przegranego oznaczone są półprzezroczystym kolorem.'
                 : isMyTurn
-                ? 'Trafienie gwarantuje kolejny strzał! Puste pola oznaczają się same na czerwony ✕.'
+                ? 'Trafienie gwarantuje kolejny strzał! Puste pola oznaczają się same na czarny ✕.'
                 : 'Oczekiwanie na ruch przeciwnika...'}
             </p>
           </div>
@@ -261,10 +353,10 @@ export default function GameView({
       </div>
 
       {/* Main Game Arena: 2 Fully Visible Boards + Chat */}
-      <div className="w-full grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      <div className="w-full grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-12 gap-6 items-start">
         
         {/* Left: Your Fleet (Always 100% visible) */}
-        <div className="xl:col-span-4 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="w-full lg:col-span-1 xl:col-span-4 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="w-full flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-blue-600" />
@@ -312,13 +404,20 @@ export default function GameView({
             </div>
           </div>
 
+          {/* Drawn Ships Overview for Player (Darkens on Sunk) */}
+          <FleetDrawnOverview
+            sunkShips={(me?.ships || []).filter(s => s.sunk)}
+            fleetStyle={myFleetStyle}
+            title="Twoje Okręty"
+          />
+
           <div className="mt-3 text-[11px] text-slate-500 text-center">
-            Płomienie na Twoich okrętach to trafienia, a <strong className="text-red-600 font-bold">czerwony ✕</strong> to pudła wroga.
+            Płomienie na Twoich okrętach to trafienia, a <strong className="text-slate-900 font-bold">czarny ✕</strong> to pudła wroga.
           </div>
         </div>
 
         {/* Center: Enemy Board (Always 100% visible, reveals unhit ships semi-transparently on game over!) */}
-        <div className="xl:col-span-5 flex flex-col items-center bg-white border-2 border-slate-300 rounded-2xl p-4 shadow-md relative">
+        <div className="w-full lg:col-span-1 xl:col-span-5 flex flex-col items-center bg-white border-2 border-slate-300 rounded-2xl p-4 shadow-md relative">
           
           <div className="w-full flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
@@ -362,44 +461,23 @@ export default function GameView({
             </div>
           </div>
 
-          {/* Sunk ships checklist preview */}
-          <div className="w-full mt-4 pt-3 border-t border-slate-200 flex items-center justify-around text-[11px] text-slate-600">
-            <div className="flex items-center space-x-1">
-              <span>4-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 4).length}/1
-              </span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>3-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 3).length}/2
-              </span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>2-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 2).length}/3
-              </span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>1-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 1).length}/4
-              </span>
-            </div>
-          </div>
+          {/* Drawn Ships Overview for Enemy (Darkens on Sunk) */}
+          <FleetDrawnOverview
+            sunkShips={enemy?.sunkShips || []}
+            fleetStyle={enemyFleetStyle}
+            title="Flota Przeciwnika"
+          />
 
           {isGameOver && (
             <div className="mt-3 text-[11px] text-slate-600 text-center font-medium">
-              💡 Półprześwitujące pola z przerywaną ramką oznaczają ocalałe statki, których nie trafiono.
+              💡 Półprzezroczyste pola z przerywaną ramką oznaczają ocalałe statki po zakończeniu bitwy.
             </div>
           )}
 
         </div>
 
         {/* Right: In-Game Chat */}
-        <div className="xl:col-span-3 flex flex-col h-[460px] bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="w-full lg:col-span-2 xl:col-span-3 flex flex-col h-[460px] bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <h3 className="font-chakra font-bold text-sm text-slate-900 mb-2 flex items-center justify-between">
             <span>Czat Bitewny</span>
             <span className="text-[10px] text-slate-500 font-mono">Tura {gameState.turnsCount || 1}</span>
