@@ -63,8 +63,8 @@ export default function RulesModal({ isOpen, onClose }) {
             </h3>
             <ul className="list-disc list-inside space-y-1 pl-1">
               <li><strong>Trafienie</strong>: Gracz, który trafił wrogi okręt, natychmiast otrzymuje <strong>prawo do kolejnego strzału</strong>!</li>
-              <li><strong>Automatyczne X na skosach</strong>: Po trafieniu segmentu, narożniki po skosie same oznaczają się jako puste pola (X), gdyż żaden statek nie mógłby tam legalnie stać.</li>
-              <li><strong>Zatopienie</strong>: Po zatopieniu całego statku, cały 1-kratkowy obrys dookoła jednostki samoczynnie oznacza się na X (pudło), oszczędzając Twoje strzały!</li>
+              <li><strong>Automatyczne X na skosach</strong>: Po trafieniu segmentu, narożniki po skosie same oznaczają się jako puste pola (czarny ✕), gdyż żaden statek nie mógłby tam legalnie stać.</li>
+              <li><strong>Zatopienie</strong>: Po zatopieniu całego statku, cały 1-kratkowy obrys dookoła jednostki samoczynnie oznacza się na czarny ✕ (pudło), oszczędzając Twoje strzały!</li>
             </ul>
           </div>
 
