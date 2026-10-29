@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+battleship.sqlite-journal
+battleship.sqlite-wal
+battleship.sqlite-shm
