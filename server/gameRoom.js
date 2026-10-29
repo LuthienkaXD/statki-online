@@ -226,8 +226,9 @@ class GameRoom {
         name: enemy.name,
         ready: enemy.ready,
         color: enemy.color || 'slate',
-        // Only reveal enemy sunk ships, never unhit active ships!
+        // Only reveal enemy sunk ships during game; when finished, reveal all ships so unhit ships can be shown
         sunkShips: (enemy.ships || []).filter(s => s.sunk),
+        allShips: this.status === 'finished' ? enemy.ships : undefined,
         shotsGrid: enemy.shotsGrid, // Shots I fired at enemy
         stats: { hits: enemy.stats.hits, shots: enemy.stats.shots },
         totalShipsRemaining: (enemy.ships || []).filter(s => !s.sunk).length

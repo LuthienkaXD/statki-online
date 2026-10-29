@@ -45,7 +45,7 @@ export default function GameView({
   }, [isGameOver, isWinner]);
 
   const handleShoot = (r, c) => {
-    if (!isMyTurn) return;
+    if (!isMyTurn || isGameOver) return;
     if (enemy?.shotsGrid[r][c] !== null) return;
 
     sounds.playShoot();
@@ -70,14 +70,19 @@ export default function GameView({
   // Render cell on enemy board
   const renderEnemyCell = (r, c) => {
     const cellState = enemy?.shotsGrid[r][c]; // null, 'miss', 'hit'
-    const isClickable = isMyTurn && cellState === null;
+    const isClickable = isMyTurn && !isGameOver && cellState === null;
 
     // Check if cell belongs to a known sunk ship
     const sunkShip = enemy?.sunkShips?.find(ship =>
       ship.cells.some(sc => sc.r === r && sc.c === c)
     );
 
-    let cellClass = 'bg-slate-50 border-slate-200 cursor-not-allowed opacity-90';
+    // After game ends: check if cell belongs to an unhit surviving ship
+    const unhitShip = isGameOver && enemy?.allShips?.find(ship =>
+      !ship.sunk && ship.cells.some(sc => sc.r === r && sc.c === c && !sc.hit)
+    );
+
+    let cellClass = 'bg-slate-50 border-slate-200 cursor-not-allowed';
     let inlineStyle = {};
 
     if (cellState === 'hit') {
@@ -89,7 +94,14 @@ export default function GameView({
       }
     } else if (cellState === 'miss') {
       cellClass = 'bg-slate-100 border-slate-200';
-    } else if (isMyTurn) {
+    } else if (unhitShip) {
+      // Semi-transparent ghost ship for unhit enemy ships after game finishes
+      cellClass = 'border-2 border-dashed border-slate-400 shadow-2xs';
+      inlineStyle = {
+        ...enemyFleetStyle.style,
+        opacity: 0.45
+      };
+    } else if (isMyTurn && !isGameOver) {
       cellClass = 'bg-slate-50 border-slate-300 hover:bg-red-50 hover:border-red-400 cursor-crosshair';
     }
 
@@ -99,14 +111,21 @@ export default function GameView({
         disabled={!isClickable}
         onClick={() => handleShoot(r, c)}
         style={inlineStyle}
+        title={unhitShip ? 'Ocalały statek przeciwnika (nieodkryty)' : undefined}
         className={`w-7 h-7 sm:w-8 sm:h-8 rounded border flex items-center justify-center transition-all duration-150 relative ${cellClass}`}
       >
         {cellState === 'hit' && (
           <Flame className="w-4 h-4 text-amber-200 drop-shadow fill-amber-300" />
         )}
 
+        {/* Red X on empty fields (misses and auto-marked water) */}
         {cellState === 'miss' && (
-          <span className="text-slate-400 font-bold text-xs select-none">✕</span>
+          <span className="text-red-600 font-extrabold text-xs select-none drop-shadow-2xs">✕</span>
+        )}
+
+        {/* Ghost indicator on surviving unhit ships */}
+        {unhitShip && cellState === null && (
+          <div className="w-2 h-2 rounded-full bg-white/90 shadow-xs"></div>
         )}
       </button>
     );
@@ -141,7 +160,8 @@ export default function GameView({
         {shot === 'hit' ? (
           <Flame className="w-4 h-4 text-rose-300 animate-pulse fill-rose-500" />
         ) : shot === 'miss' ? (
-          <span className="text-slate-400 font-bold text-xs select-none">✕</span>
+          /* Red X on empty squares on own board as well */
+          <span className="text-red-600 font-extrabold text-xs select-none drop-shadow-2xs">✕</span>
         ) : myShip ? (
           <div className="w-1.5 h-1.5 rounded-full bg-white/80"></div>
         ) : null}
@@ -152,24 +172,40 @@ export default function GameView({
   return (
     <div className="w-full max-w-7xl mx-auto p-2 sm:p-4 flex flex-col items-center">
       
-      {/* Top Banner: Turn status & Link */}
-      <div className="w-full max-w-4xl mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white border border-slate-200 p-3 sm:p-4 rounded-2xl shadow-sm">
+      {/* Top Banner: Turn status / Game Over Header & Controls */}
+      <div className={`w-full max-w-4xl mb-4 flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 sm:p-4 rounded-2xl shadow-sm border transition-all ${
+        isGameOver
+          ? isWinner
+            ? 'bg-gradient-to-r from-amber-50 to-emerald-50 border-amber-300'
+            : 'bg-gradient-to-r from-rose-50 to-slate-50 border-rose-300'
+          : 'bg-white border-slate-200'
+      }`}>
         
-        {/* Turn Status */}
-        <div className="flex items-center space-x-3">
-          <div className={`w-3.5 h-3.5 rounded-full ${
-            isGameOver
-              ? 'bg-amber-500'
-              : isMyTurn
-              ? 'bg-emerald-500 animate-ping'
-              : 'bg-rose-500'
-          }`} />
+        {/* Status icon & message */}
+        <div className="flex items-center space-x-3.5 text-left">
+          {isGameOver ? (
+            isWinner ? (
+              <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 shrink-0 shadow-xs">
+                <Trophy className="w-7 h-7" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-600 shrink-0 shadow-xs">
+                <Skull className="w-7 h-7" />
+              </div>
+            )
+          ) : (
+            <div className={`w-3.5 h-3.5 rounded-full ${
+              isMyTurn
+                ? 'bg-emerald-500 animate-ping'
+                : 'bg-rose-500'
+            }`} />
+          )}
 
           <div>
-            <div className="font-chakra font-bold text-base sm:text-lg flex items-center space-x-2">
+            <div className="font-chakra font-bold text-base sm:text-lg">
               {isGameOver ? (
-                <span className={isWinner ? 'text-amber-600' : 'text-rose-600'}>
-                  {isWinner ? '🏆 ZWYCIĘSTWO! Wroga flota zniszczona!' : '💀 PORAŻKA! Twoja flota została zatopiona.'}
+                <span className={isWinner ? 'text-amber-800' : 'text-rose-800'}>
+                  {isWinner ? '🏆 ZWYCIĘSTWO! Wroga flota została zatopiona!' : '💀 PORAŻKA! Twoja flota została zniszczona.'}
                 </span>
               ) : isMyTurn ? (
                 <span className="text-emerald-600 flex items-center space-x-1.5">
@@ -182,31 +218,52 @@ export default function GameView({
                 </span>
               )}
             </div>
-            {!isGameOver && (
-              <p className="text-[11px] text-slate-500">
-                {isMyTurn ? 'Trafienie gwarantuje kolejny strzał! Puste pola dookoła oznaczają się same na X.' : 'Oczekiwanie na ruch przeciwnika...'}
-              </p>
-            )}
+
+            <p className="text-xs text-slate-600 mt-0.5">
+              {isGameOver
+                ? 'Obie plansze pozostają w pełni widoczne. Nieodkryte statki wyświetlają się w trybie półprześwitującym.'
+                : isMyTurn
+                ? 'Trafienie gwarantuje kolejny strzał! Puste pola oznaczają się same na czerwony ✕.'
+                : 'Oczekiwanie na ruch przeciwnika...'}
+            </p>
           </div>
         </div>
 
-        {/* Share Link button if friend game */}
-        {!isBotGame && (
-          <button
-            onClick={copyRoomLink}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 border border-slate-200 text-xs font-semibold transition"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? 'Skopiowano link do gry!' : 'Skopiuj link do pokoju'}</span>
-          </button>
+        {/* Action buttons: Rematch & Leave during Game Over, or Share Link during battle */}
+        {isGameOver ? (
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              onClick={() => { sounds.playClick(); onRematch(); }}
+              className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold font-chakra text-xs sm:text-sm shadow-xs transition"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Zagraj Rewanż</span>
+            </button>
+            <button
+              onClick={() => { sounds.playClick(); onLeaveRoom(); }}
+              className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium transition border border-slate-300 shadow-2xs"
+            >
+              Menu
+            </button>
+          </div>
+        ) : (
+          !isBotGame && (
+            <button
+              onClick={copyRoomLink}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 border border-slate-200 text-xs font-semibold transition"
+            >
+              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+              <span>{copied ? 'Skopiowano link do gry!' : 'Skopiuj link do pokoju'}</span>
+            </button>
+          )
         )}
 
       </div>
 
-      {/* Main Game Arena: 2 Boards + Chat */}
+      {/* Main Game Arena: 2 Fully Visible Boards + Chat */}
       <div className="w-full grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         
-        {/* Left: Your Fleet */}
+        {/* Left: Your Fleet (Always 100% visible) */}
         <div className="xl:col-span-4 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="w-full flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
@@ -256,11 +313,11 @@ export default function GameView({
           </div>
 
           <div className="mt-3 text-[11px] text-slate-500 text-center">
-            Płomienie na Twoich okrętach oznaczają trafienia zadane przez wroga.
+            Płomienie na Twoich okrętach to trafienia, a <strong className="text-red-600 font-bold">czerwony ✕</strong> to pudła wroga.
           </div>
         </div>
 
-        {/* Center: Enemy Board (Targeting Arena) */}
+        {/* Center: Enemy Board (Always 100% visible, reveals unhit ships semi-transparently on game over!) */}
         <div className="xl:col-span-5 flex flex-col items-center bg-white border-2 border-slate-300 rounded-2xl p-4 shadow-md relative">
           
           <div className="w-full flex items-center justify-between mb-3">
@@ -333,46 +390,9 @@ export default function GameView({
             </div>
           </div>
 
-          {/* Game Over Actions */}
           {isGameOver && (
-            <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center p-6 text-center animate-fade-in z-20 shadow-xl border border-slate-200">
-              {isWinner ? (
-                <>
-                  <Trophy className="w-16 h-16 text-amber-500 mb-2 drop-shadow-md" />
-                  <h3 className="text-2xl font-bold font-chakra text-slate-900 mb-1">
-                    Gratulacje, Kapitanie!
-                  </h3>
-                  <p className="text-sm text-slate-600 max-w-sm mb-6">
-                    Zatopiłeś całą flotę wroga. Wynik został zapisany w rankingu dziennym!
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Skull className="w-16 h-16 text-rose-500 mb-2 drop-shadow-md" />
-                  <h3 className="text-2xl font-bold font-chakra text-slate-900 mb-1">
-                    Twoja Flota Zatonęła
-                  </h3>
-                  <p className="text-sm text-slate-600 max-w-sm mb-6">
-                    Przeciwnik okazał się sprytniejszy w tej bitwie. Czas na rewanż!
-                  </p>
-                </>
-              )}
-
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  onClick={() => { sounds.playClick(); onRematch(); }}
-                  className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold font-chakra transition shadow-md"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Zagraj Rewanż</span>
-                </button>
-                <button
-                  onClick={() => { sounds.playClick(); onLeaveRoom(); }}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium transition border border-slate-200"
-                >
-                  Wróć do menu głównego
-                </button>
-              </div>
+            <div className="mt-3 text-[11px] text-slate-600 text-center font-medium">
+              💡 Półprześwitujące pola z przerywaną ramką oznaczają ocalałe statki, których nie trafiono.
             </div>
           )}
 
