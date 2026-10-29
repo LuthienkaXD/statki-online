@@ -165,6 +165,9 @@ export default function App() {
 
   const handleLeaveRoom = () => {
     sounds.playClick();
+    if (socket) {
+      socket.emit('leave_room');
+    }
     setCurrentRoomId(null);
     setGameState(null);
     setPlayerKey(null);
@@ -222,6 +225,7 @@ export default function App() {
             onCreateRoom={handleCreateRoom}
             onJoinRoom={handleJoinRoom}
             user={user}
+            socket={socket}
             onOpenAuth={() => setIsAuthOpen(true)}
             onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
           />
