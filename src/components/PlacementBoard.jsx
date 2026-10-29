@@ -9,12 +9,13 @@ import {
   generateRandomFleet,
   buildGridFromShips
 } from '../utils/rules';
-import { Shuffle, Trash2, RotateCw, CheckCircle2, ShieldAlert, Palette, Check } from 'lucide-react';
+import { Shuffle, Trash2, RotateCw, CheckCircle2, ShieldAlert, Palette, Check, GripVertical } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export default function PlacementBoard({ onReady, isBotGame }) {
   const [placedShips, setPlacedShips] = useState([]);
   const [selectedDockShip, setSelectedDockShip] = useState(null); // { size, name, id }
+  const [draggedShip, setDraggedShip] = useState(null); // { size, name, source: 'dock'|'board', shipId?, isVertical? }
   const [isVertical, setIsVertical] = useState(false);
   const [hoverCoord, setHoverCoord] = useState(null); // { r, c }
   const [errorMessage, setErrorMessage] = useState('');
@@ -73,6 +74,106 @@ export default function PlacementBoard({ onReady, isBotGame }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const handleDockDragStart = (e, ship) => {
+    if (ship.remaining <= 0) return;
+    const dragData = { size: ship.size, name: ship.name, source: 'dock' };
+    setDraggedShip(dragData);
+    setSelectedDockShip(ship);
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+    e.dataTransfer.effectAllowed = 'copyMove';
+  };
+
+  const handleBoardDragStart = (e, r, c) => {
+    const shipId = grid[r][c];
+    if (!shipId) return;
+    const ship = placedShips.find(s => s.id === shipId);
+    if (!ship) return;
+
+    const dragData = {
+      size: ship.size,
+      name: ship.name,
+      source: 'board',
+      shipId: ship.id,
+      isVertical: ship.isVertical
+    };
+    setDraggedShip(dragData);
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDrop = (r, c) => {
+    const active = draggedShip || selectedDockShip;
+    if (!active) return;
+
+    const activeVertical = (draggedShip && draggedShip.source === 'board')
+      ? draggedShip.isVertical
+      : isVertical;
+
+    const validationGrid = draggedShip?.source === 'board'
+      ? buildGridFromShips(placedShips.filter(s => s.id !== draggedShip.shipId))
+      : grid;
+
+    const valid = canPlaceShip(validationGrid, r, c, active.size, activeVertical);
+    if (!valid) {
+      sounds.playClick();
+      setErrorMessage('Nieprawidłowe położenie! Statki nie mogą się ze sobą stykać ani bokami, ani rogami.');
+      setDraggedShip(null);
+      setHoverCoord(null);
+      return;
+    }
+
+    sounds.playClick();
+    const cells = [];
+    for (let i = 0; i < active.size; i++) {
+      cells.push({
+        r: activeVertical ? r + i : r,
+        c: activeVertical ? c : c + i,
+        hit: false
+      });
+    }
+
+    if (draggedShip?.source === 'board') {
+      setPlacedShips(prev => prev.map(s => {
+        if (s.id === draggedShip.shipId) {
+          return {
+            ...s,
+            isVertical: activeVertical,
+            cells
+          };
+        }
+        return s;
+      }));
+    } else {
+      const shipId = `ship_${active.size}_${Date.now()}_${Math.random()}`;
+      const newShip = {
+        id: shipId,
+        name: active.name,
+        size: active.size,
+        isVertical: activeVertical,
+        cells,
+        sunk: false
+      };
+      setPlacedShips(prev => [...prev, newShip]);
+
+      if (selectedDockShip && selectedDockShip.size === active.size) {
+        if (selectedDockShip.remaining - 1 <= 0) {
+          const nextAvail = dockFleet.find(d => d.size !== selectedDockShip.size && d.remaining > 0);
+          setSelectedDockShip(nextAvail || null);
+        }
+      }
+    }
+
+    setErrorMessage('');
+    setDraggedShip(null);
+    setHoverCoord(null);
+  };
+
+  const handleCellContextMenu = (e) => {
+    e.preventDefault();
+    sounds.playClick();
+    setIsVertical(prev => !prev);
+  };
+
   const handleCellClick = (r, c) => {
     sounds.playClick();
 
@@ -123,17 +224,26 @@ export default function PlacementBoard({ onReady, isBotGame }) {
     }
   };
 
-  // Check validity for hover preview
-  const isHoverValid = hoverCoord && selectedDockShip
-    ? canPlaceShip(grid, hoverCoord.r, hoverCoord.c, selectedDockShip.size, isVertical)
+  // Check validity for hover preview (unified for both drag-and-drop and click selection)
+  const activeShip = draggedShip || selectedDockShip;
+  const activeVertical = (draggedShip && draggedShip.source === 'board')
+    ? draggedShip.isVertical
+    : isVertical;
+
+  const previewGrid = draggedShip?.source === 'board'
+    ? buildGridFromShips(placedShips.filter(s => s.id !== draggedShip.shipId))
+    : grid;
+
+  const isHoverValid = hoverCoord && activeShip
+    ? canPlaceShip(previewGrid, hoverCoord.r, hoverCoord.c, activeShip.size, activeVertical)
     : false;
 
   const hoverCells = [];
-  if (hoverCoord && selectedDockShip) {
-    for (let i = 0; i < selectedDockShip.size; i++) {
+  if (hoverCoord && activeShip) {
+    for (let i = 0; i < activeShip.size; i++) {
       hoverCells.push({
-        r: isVertical ? hoverCoord.r + i : hoverCoord.r,
-        c: isVertical ? hoverCoord.c : hoverCoord.c + i
+        r: activeVertical ? hoverCoord.r + i : hoverCoord.r,
+        c: activeVertical ? hoverCoord.c : hoverCoord.c + i
       });
     }
   }
@@ -280,19 +390,44 @@ export default function PlacementBoard({ onReady, isBotGame }) {
                         : 'bg-rose-100 border-rose-500 ring-2 ring-rose-400';
                     }
 
+                    const isDraggedCell = draggedShip?.source === 'board' && draggedShip.shipId === shipId;
+
                     return (
-                      <button
+                      <div
                         key={`${rIdx}-${cIdx}`}
+                        role="button"
+                        tabIndex={0}
+                        draggable={isOccupied}
+                        onDragStart={(e) => handleBoardDragStart(e, rIdx, cIdx)}
+                        onDragEnd={() => {
+                          setDraggedShip(null);
+                          setHoverCoord(null);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          if (hoverCoord?.r !== rIdx || hoverCoord?.c !== cIdx) {
+                            setHoverCoord({ r: rIdx, c: cIdx });
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleDrop(rIdx, cIdx);
+                        }}
+                        onContextMenu={handleCellContextMenu}
                         onClick={() => handleCellClick(rIdx, cIdx)}
-                        onMouseEnter={() => setHoverCoord({ r: rIdx, c: cIdx })}
-                        onMouseLeave={() => setHoverCoord(null)}
+                        onMouseEnter={() => !draggedShip && setHoverCoord({ r: rIdx, c: cIdx })}
+                        onMouseLeave={() => !draggedShip && setHoverCoord(null)}
                         style={inlineStyle}
-                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-md border flex items-center justify-center transition-all duration-150 ${cellClass}`}
+                        title={isOccupied ? 'Przeciągnij, aby przesunąć statek, lub kliknij, aby usunąć do doku' : 'Prawy przycisk myszy obraca statek'}
+                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-md border flex items-center justify-center transition-all duration-150 select-none ${
+                          isOccupied ? 'cursor-grab active:cursor-grabbing hover:brightness-105' : 'cursor-pointer'
+                        } ${isDraggedCell ? 'opacity-40 ring-2 ring-slate-400' : ''} ${cellClass}`}
                       >
                         {isOccupied && (
-                          <div className="w-2 h-2 rounded-full bg-white/80"></div>
+                          <div className="w-2 h-2 rounded-full bg-white/80 pointer-events-none"></div>
                         )}
-                      </button>
+                      </div>
                     );
                   })}
                 </React.Fragment>
@@ -342,7 +477,7 @@ export default function PlacementBoard({ onReady, isBotGame }) {
           </h3>
 
           <p className="text-xs text-slate-500 mb-4">
-            Kliknij statek z doku, a następnie kliknij pole na planszy. Kliknięcie postawionego statku usuwa go do doku.
+            Przeciągnij statek na planszę (<strong>Drag & Drop</strong>) lub kliknij go i wskaż pole. Postawiony statek możesz przeciągnąć w inne miejsce lub kliknąć, aby usunąć. Klawisz <strong>R</strong> lub prawy przycisk myszy obraca statek.
           </p>
 
           {/* Ships List */}
@@ -354,6 +489,12 @@ export default function PlacementBoard({ onReady, isBotGame }) {
               return (
                 <div
                   key={ship.size}
+                  draggable={!isDone}
+                  onDragStart={(e) => handleDockDragStart(e, ship)}
+                  onDragEnd={() => {
+                    setDraggedShip(null);
+                    setHoverCoord(null);
+                  }}
                   onClick={() => {
                     if (!isDone) {
                       sounds.playClick();
@@ -361,15 +502,19 @@ export default function PlacementBoard({ onReady, isBotGame }) {
                       setErrorMessage('');
                     }
                   }}
-                  className={`p-3 rounded-xl border transition cursor-pointer flex items-center justify-between ${
+                  title={!isDone ? 'Przeciągnij ten statek na planszę lub kliknij, aby wybrać' : undefined}
+                  className={`p-3 rounded-xl border transition flex items-center justify-between select-none ${
                     isSelected
                       ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-400/40 shadow-xs'
                       : isDone
                       ? 'bg-slate-50 border-slate-200 opacity-50 cursor-default'
-                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 cursor-grab active:cursor-grabbing'
                   }`}
                 >
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2.5">
+                    {!isDone && (
+                      <GripVertical className="w-4 h-4 text-slate-400 shrink-0" />
+                    )}
                     {/* Ship Preview Blocks in dynamic custom color */}
                     <div className="flex space-x-1">
                       {Array.from({ length: ship.size }).map((_, i) => (
