@@ -127,6 +127,43 @@ app.get('/api/rooms/:id', (req, res) => {
   });
 });
 
+// Active multiplayer rooms list (max 2 players per room)
+function getLobbyRooms() {
+  const rooms = [];
+  for (const [id, room] of activeRooms.entries()) {
+    if (room.isBotGame) continue;
+    const p1 = room.players.p1;
+    const p2 = room.players.p2;
+    const count = (p1 ? 1 : 0) + (p2 ? 1 : 0);
+    if (count === 0) continue;
+
+    rooms.push({
+      id: room.id,
+      hostName: p1 ? p1.name : 'Kapitan',
+      playerCount: count,
+      maxPlayers: 2,
+      status: room.status,
+      canJoin: count < 2 && (room.status === 'waiting' || room.status === 'placement'),
+      createdAt: room.createdAt
+    });
+  }
+  rooms.sort((a, b) => {
+    if (a.canJoin && !b.canJoin) return -1;
+    if (!a.canJoin && b.canJoin) return 1;
+    return b.createdAt - a.createdAt;
+  });
+  return rooms;
+}
+
+function broadcastLobbyRooms() {
+  io.emit('rooms_update', getLobbyRooms());
+}
+
+// GET /api/rooms - returns all active multiplayer rooms
+app.get('/api/rooms', (req, res) => {
+  res.json({ rooms: getLobbyRooms() });
+});
+
 // Serve frontend build when available
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
@@ -147,6 +184,11 @@ io.on('connection', (socket) => {
   let currentRoomId = null;
   let playerKey = null;
 
+  // Request rooms list
+  socket.on('request_rooms', () => {
+    socket.emit('rooms_update', getLobbyRooms());
+  });
+
   // Create Room
   socket.on('create_room', ({ isBot = false, user = null }) => {
     let roomId = generateRoomId();
@@ -162,6 +204,7 @@ io.on('connection', (socket) => {
 
     socket.emit('room_created', { roomId, playerKey, state: room.getClientState(playerKey) });
     broadcastRoomState(room);
+    broadcastLobbyRooms();
   });
 
   // Join Room
@@ -176,7 +219,7 @@ io.on('connection', (socket) => {
 
     playerKey = room.join(socket.id, user);
     if (!playerKey) {
-      socket.emit('join_error', { message: 'Pokój jest już pełny.' });
+      socket.emit('join_error', { message: 'Pokój jest już pełny (maksymalnie 2 graczy).' });
       return;
     }
 
@@ -185,6 +228,7 @@ io.on('connection', (socket) => {
 
     socket.emit('room_joined', { roomId: cleanId, playerKey, state: room.getClientState(playerKey) });
     broadcastRoomState(room);
+    broadcastLobbyRooms();
   });
 
   // Place Ships & Set Ready
@@ -287,6 +331,28 @@ io.on('connection', (socket) => {
 
     room.addChatMessage(null, 'Nowa bitwa! Rozstawcie swoje statki.');
     broadcastRoomState(room);
+    broadcastLobbyRooms();
+  });
+
+  // Leave Room
+  socket.on('leave_room', () => {
+    if (currentRoomId) {
+      socket.leave(currentRoomId);
+      const room = activeRooms.get(currentRoomId);
+      if (room) {
+        if (room.status === 'waiting' || (room.status === 'placement' && !room.players.p2)) {
+          activeRooms.delete(currentRoomId);
+        } else if (playerKey) {
+          room.players[playerKey] = null;
+          if (!room.players.p1 && !room.players.p2) {
+            activeRooms.delete(currentRoomId);
+          }
+        }
+        broadcastLobbyRooms();
+      }
+      currentRoomId = null;
+      playerKey = null;
+    }
   });
 
   // Disconnect
@@ -304,7 +370,15 @@ io.on('connection', (socket) => {
             room.addChatMessage(null, `${room.players[playerKey]?.name || 'Gracz'} opuścił grę.`);
             broadcastRoomState(room);
           }
+        } else if (room.status === 'waiting') {
+          activeRooms.delete(currentRoomId);
+        } else if (playerKey) {
+          room.players[playerKey] = null;
+          if (!room.players.p1 && !room.players.p2) {
+            activeRooms.delete(currentRoomId);
+          }
         }
+        broadcastLobbyRooms();
       }
     }
   });
