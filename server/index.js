@@ -429,12 +429,12 @@ io.on('connection', (socket) => {
   });
 
   // Place Ships & Set Ready
-  socket.on('set_ships', ({ ships, color }) => {
+  socket.on('set_ships', ({ ships, color, mines }) => {
     if (!currentRoomId) return;
     const room = activeRooms.get(currentRoomId);
     if (!room) return;
 
-    const res = room.setPlayerShips(playerKey, ships, color);
+    const res = room.setPlayerShips(playerKey, ships, color, mines);
     if (!res.valid) {
       socket.emit('placement_error', { message: res.reason });
       return;

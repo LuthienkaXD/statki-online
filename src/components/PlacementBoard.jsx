@@ -19,17 +19,22 @@ import {
   Palette,
   Check,
   Layers,
-  Move
+  Move,
+  Bomb
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
-export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
+export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, options = {} }) {
   const [placedShips, setPlacedShips] = useState([]);
+  const [placedMines, setPlacedMines] = useState([]);
+  const [mineMode, setMineMode] = useState(false);
   const [selectedDockShip, setSelectedDockShip] = useState(null); // Dock ship OR dragged ship
   const [isVertical, setIsVertical] = useState(false);
   const [hoverCoord, setHoverCoord] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [customColor, setCustomColor] = useState('#2563eb');
+
+  const maxMines = options.mines ? (options.minesCount || 2) : 0;
 
   // Drag-and-drop state
   const [draggedShip, setDraggedShip] = useState(null);
@@ -72,11 +77,33 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
     setSelectedDockShip(null);
     setDraggedShip(null);
     setErrorMessage('');
+
+    // If mines enabled, generate random mines in empty water
+    if (maxMines > 0) {
+      const occupied = new Set();
+      newFleet.forEach(s => s.cells.forEach(c => occupied.add(`${c.r},${c.c}`)));
+      const randomMines = [];
+      let attempts = 0;
+      while (randomMines.length < maxMines && attempts < 500) {
+        attempts++;
+        const r = Math.floor(Math.random() * boardSize);
+        const c = Math.floor(Math.random() * boardSize);
+        const key = `${r},${c}`;
+        if (!occupied.has(key) && !randomMines.some(m => m.r === r && m.c === c)) {
+          randomMines.push({ r, c });
+          occupied.add(key);
+        }
+      }
+      setPlacedMines(randomMines);
+    } else {
+      setPlacedMines([]);
+    }
   };
 
   const handleClear = () => {
     sounds.playClick();
     setPlacedShips([]);
+    setPlacedMines([]);
     setSelectedDockShip(null);
     setDraggedShip(null);
     setErrorMessage('');
@@ -117,6 +144,34 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
   // Click on board cell
   const handleCellClick = (r, c) => {
     sounds.playClick();
+
+    // If in Mine Placement mode
+    if (mineMode && maxMines > 0) {
+      // Check if clicked cell has a mine already -> remove it
+      const existingMineIdx = placedMines.findIndex(m => m.r === r && m.c === c);
+      if (existingMineIdx !== -1) {
+        setPlacedMines(prev => prev.filter((_, idx) => idx !== existingMineIdx));
+        setErrorMessage('');
+        return;
+      }
+
+      // Check if cell is occupied by a ship
+      const isShipCell = grid[r][c] !== 0;
+      if (isShipCell) {
+        setErrorMessage('Mina morska musi znajdować się w wolnej wodzie (nie na statku)!');
+        return;
+      }
+
+      // Check max limit
+      if (placedMines.length >= maxMines) {
+        setErrorMessage(`Rozstawiłeś już maksymalną liczbę min (${maxMines})! Kliknij na postawioną minę, by ją usunąć.`);
+        return;
+      }
+
+      setPlacedMines(prev => [...prev, { r, c }]);
+      setErrorMessage('');
+      return;
+    }
 
     const clickedShipId = grid[r][c];
 
@@ -243,7 +298,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
       return;
     }
     sounds.playClick();
-    onReady(placedShips, customColor);
+    onReady(placedShips, customColor, placedMines);
   };
 
   return (
@@ -353,6 +408,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
                     const isOccupied = Boolean(shipId);
                     const isBeingMoved = draggedShip && draggedShip.id === shipId;
                     const isPreview = hoverCells.some(h => h.r === rIdx && h.c === cIdx);
+                    const isMineCell = placedMines.some(m => m.r === rIdx && m.c === cIdx);
 
                     let cellClass = 'bg-slate-50 border-slate-300 hover:bg-slate-100 hover:border-slate-400';
                     let inlineStyle = {};
@@ -362,10 +418,14 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
                         ? 'border-dashed border-indigo-400 opacity-40'
                         : 'border-transparent text-white shadow-2xs cursor-grab active:cursor-grabbing';
                       inlineStyle = fleetStyle.style;
+                    } else if (isMineCell) {
+                      cellClass = 'bg-rose-50 border-rose-400 text-rose-600 shadow-2xs hover:bg-rose-100';
                     } else if (isPreview) {
                       cellClass = isHoverValid
                         ? 'bg-emerald-100 border-emerald-500 ring-2 ring-emerald-400'
                         : 'bg-rose-100 border-rose-500 ring-2 ring-rose-400';
+                    } else if (mineMode) {
+                      cellClass = 'bg-slate-50 border-slate-300 hover:bg-rose-50 hover:border-rose-400';
                     }
 
                     return (
@@ -380,10 +440,21 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
                         onMouseLeave={() => setHoverCoord(null)}
                         style={inlineStyle}
                         className={`h-7 sm:h-8 rounded-md border flex items-center justify-center transition-all duration-150 cursor-pointer ${cellClass}`}
-                        title={isOccupied ? 'Kliknij lub przeciągnij, aby przenieść w inne miejsce' : ''}
+                        title={
+                          isOccupied
+                            ? 'Kliknij lub przeciągnij, aby przenieść w inne miejsce'
+                            : isMineCell
+                            ? 'Twoja mina morska (kliknij, by usunąć)'
+                            : mineMode
+                            ? 'Kliknij, aby postawić minę'
+                            : ''
+                        }
                       >
                         {isOccupied && (
                           <div className="w-2 h-2 rounded-full bg-white/80"></div>
+                        )}
+                        {!isOccupied && isMineCell && (
+                          <Bomb className="w-4 h-4 text-rose-600 animate-bounce" />
                         )}
                       </button>
                     );
@@ -397,6 +468,32 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
 
           {/* Quick controls beneath board */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+            {maxMines > 0 && (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  setMineMode(!mineMode);
+                  setSelectedDockShip(null);
+                  setDraggedShip(null);
+                  setErrorMessage(
+                    !mineMode
+                      ? `Tryb Min Morskich aktywny! Kliknij wolne pole wodne na planszy, aby umieścić minę (${placedMines.length}/${maxMines}).`
+                      : ''
+                  );
+                }}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer border ${
+                  mineMode
+                    ? 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-400'
+                    : 'bg-white hover:bg-rose-50 text-rose-700 border-rose-300'
+                }`}
+              >
+                <Bomb className="w-3.5 h-3.5" />
+                <span>
+                  {mineMode ? 'Zakończ rozstawianie min' : `Rozstaw miny (${placedMines.length}/${maxMines})`}
+                </span>
+              </button>
+            )}
+
             <button
               onClick={handleRandomize}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-blue-700 border border-slate-300 text-xs font-semibold shadow-xs transition cursor-pointer"

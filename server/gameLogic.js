@@ -166,9 +166,10 @@ function validateFleet(ships, boardSize = 10) {
 }
 
 // Generates random mines in free water cells
-function generateRandomMines(ships, boardSize = 10, count = 2) {
+function generateRandomMines(ships, boardSize = 10, count = 2, existingMines = []) {
   const occupied = new Set();
   ships.forEach(s => s.cells.forEach(c => occupied.add(`${c.r},${c.c}`)));
+  (existingMines || []).forEach(m => occupied.add(`${m.r},${m.c}`));
 
   const mines = [];
   let attempts = 0;
@@ -179,6 +180,7 @@ function generateRandomMines(ships, boardSize = 10, count = 2) {
     const key = `${r},${c}`;
     if (!occupied.has(key) && !mines.some(m => m.r === r && m.c === c)) {
       mines.push({ r, c });
+      occupied.add(key);
     }
   }
   return mines;

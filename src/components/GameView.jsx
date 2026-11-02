@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getLetters, getNumbers, getFleetStyle } from '../utils/rules';
+import { getLetters, getNumbers, getFleetStyle, getRequiredFleet } from '../utils/rules';
 import {
   Crosshair,
   Shield,
@@ -14,7 +14,10 @@ import {
   Plane,
   Radio,
   Zap,
-  HelpCircle
+  HelpCircle,
+  Eye,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
@@ -35,6 +38,7 @@ export default function GameView({
   const [reconActive, setReconActive] = useState(false);
   const [sonarMode, setSonarMode] = useState(null); // null | 'row' | 'col'
   const [copied, setCopied] = useState(false);
+  const [showRemainingShips, setShowRemainingShips] = useState(true);
   const chatBottomRef = useRef(null);
 
   const { me, enemy, turn, status, winner, isBotGame, roomId, chat, boardSize = 10, options = {} } = gameState;
@@ -47,6 +51,28 @@ export default function GameView({
 
   const myFleetStyle = getFleetStyle(me?.color);
   const enemyFleetStyle = getFleetStyle(enemy?.color || '#334155');
+
+  // Compute enemy fleet requirements and sunk status
+  const enemyRequiredFleet = getRequiredFleet(boardSize);
+  const sunkShips = enemy?.sunkShips || [];
+  
+  // Count how many ships of each type are sunk
+  const sunkCounts = {};
+  sunkShips.forEach(s => {
+    const key = `${s.size}_${s.shape || 'line'}`;
+    sunkCounts[key] = (sunkCounts[key] || 0) + 1;
+  });
+
+  const enemyFleetStatus = enemyRequiredFleet.map(def => {
+    const key = `${def.size}_${def.shape || 'line'}`;
+    const sunkCount = Math.min(def.count, sunkCounts[key] || 0);
+    return {
+      ...def,
+      totalCount: def.count,
+      sunkCount,
+      remainingCount: def.count - sunkCount
+    };
+  });
 
   // Load chat dictionary presets
   useEffect(() => {
@@ -409,9 +435,20 @@ export default function GameView({
               <Crosshair className="w-4 h-4 text-rose-600" />
               <span className="font-chakra font-bold text-xs sm:text-sm text-slate-900">Flota Przeciwnika ({enemy?.name})</span>
             </div>
-            <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
-              Zatopione: {enemy?.sunkShips?.length || 0}
-            </span>
+            <div className="flex items-center space-x-2">
+              <label className="flex items-center space-x-1.5 text-[11px] font-medium text-slate-600 cursor-pointer select-none bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 hover:bg-slate-100">
+                <input
+                  type="checkbox"
+                  checked={showRemainingShips}
+                  onChange={(e) => setShowRemainingShips(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                />
+                <span>Pokaż statki</span>
+              </label>
+              <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+                Zatopione: {enemy?.sunkShips?.length || 0}
+              </span>
+            </div>
           </div>
 
           <div className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl shadow-inner max-w-full overflow-x-auto">
@@ -437,6 +474,79 @@ export default function GameView({
               ))}
             </div>
           </div>
+
+          {/* Under Enemy Board: Remaining Ships Summary (Controlled by Checkbox) */}
+          {showRemainingShips && (
+            <div className="w-full mt-3 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold font-chakra uppercase tracking-wider text-slate-700 flex items-center space-x-1">
+                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Statki na planszy wroga:</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  Pozostało pływających: <strong>{enemy?.totalShipsRemaining ?? (enemyRequiredFleet.reduce((a, b) => a + b.count, 0) - (enemy?.sunkShips?.length || 0))}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full">
+                {enemyFleetStatus.map(ship => {
+                  const isAllSunk = ship.remainingCount === 0;
+                  return (
+                    <div
+                      key={ship.id}
+                      className={`p-2 rounded-xl border flex items-center justify-between transition-all ${
+                        isAllSunk
+                          ? 'bg-rose-50/60 border-rose-200 opacity-60'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        {ship.shape === 'L' ? (
+                          <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-amber-50 rounded border border-amber-300">
+                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
+                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
+                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
+                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
+                            <div className="w-2 h-2 opacity-0"></div>
+                            <div className="w-2 h-2 opacity-0"></div>
+                          </div>
+                        ) : (
+                          <div className="flex space-x-0.5">
+                            {Array.from({ length: ship.size }).map((_, i) => (
+                              <div
+                                key={i}
+                                className={`w-2 h-3.5 rounded-xs ${
+                                  isAllSunk ? 'bg-rose-300' : 'bg-slate-700'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        <div>
+                          <div className={`text-[11px] font-semibold leading-tight ${isAllSunk ? 'line-through text-rose-700' : 'text-slate-800'}`}>
+                            {ship.name}
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-mono">
+                            {ship.shape === 'L' ? 'Kształt L' : `${ship.size}-maszt.`}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                          isAllSunk
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-white text-slate-700 border border-slate-200'
+                        }`}>
+                          {ship.sunkCount}/{ship.totalCount} zatop.
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right: In-Game Chat with Dictionary */}

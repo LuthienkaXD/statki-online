@@ -174,9 +174,9 @@ export default function App() {
     socket.emit('join_room', { roomId, user });
   };
 
-  const handleSetShips = (ships, color = 'blue') => {
+  const handleSetShips = (ships, color = 'blue', mines = []) => {
     if (!socket) return;
-    socket.emit('set_ships', { ships, color });
+    socket.emit('set_ships', { ships, color, mines });
   };
 
   const handleRpsChoice = (choice) => {
@@ -346,6 +346,7 @@ export default function App() {
               onReady={handleSetShips}
               isBotGame={gameState.isBotGame}
               boardSize={gameState.boardSize || 10}
+              options={gameState.options || {}}
             />
           )
         ) : gameState.status === 'rps' ? (

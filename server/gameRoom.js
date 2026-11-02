@@ -116,7 +116,7 @@ class GameRoom {
     return null;
   }
 
-  setPlayerShips(playerKey, ships, color = 'blue') {
+  setPlayerShips(playerKey, ships, color = 'blue', customMines = null) {
     const validation = validateFleet(ships, this.boardSize);
     if (!validation.valid) {
       return validation;
@@ -133,7 +133,31 @@ class GameRoom {
     }));
 
     if (this.options.mines) {
-      player.mines = generateRandomMines(player.ships, this.boardSize, this.options.minesCount);
+      // Validate custom mines if provided by player
+      const maxMines = this.options.minesCount || 2;
+      let validMines = [];
+      if (Array.isArray(customMines) && customMines.length <= maxMines) {
+        const occupied = new Set();
+        player.ships.forEach(s => s.cells.forEach(c => occupied.add(`${c.r},${c.c}`)));
+        
+        const filtered = customMines.filter(m => 
+          m && typeof m.r === 'number' && typeof m.c === 'number' &&
+          m.r >= 0 && m.r < this.boardSize && m.c >= 0 && m.c < this.boardSize &&
+          !occupied.has(`${m.r},${m.c}`)
+        );
+        validMines = filtered;
+      }
+
+      // If user placed fewer mines than maxMines, fill the rest randomly
+      if (validMines.length < maxMines) {
+        const remainingNeeded = maxMines - validMines.length;
+        const additional = generateRandomMines(player.ships, this.boardSize, remainingNeeded, validMines);
+        player.mines = [...validMines, ...additional];
+      } else {
+        player.mines = validMines;
+      }
+    } else {
+      player.mines = [];
     }
 
     player.ready = true;
