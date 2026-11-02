@@ -448,27 +448,32 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
         {/* Left: Dynamic Board */}
         <div className="lg:col-span-7 flex flex-col items-center">
           <div
-            style={{ zoom: `${boardZoom}%` }}
-            className="inline-block p-3 sm:p-4 bg-white border-2 border-slate-300 rounded-2xl shadow-md overflow-x-auto max-w-full transition-[zoom] duration-150 origin-top"
+            className="inline-block p-3 sm:p-4 bg-white border-2 border-slate-300 rounded-2xl shadow-md overflow-x-auto max-w-full"
           >
-            
             <div
               className="grid gap-1 items-center"
               style={{
-                gridTemplateColumns: `24px repeat(${boardSize}, minmax(22px, 32px))`
+                gridTemplateColumns: `24px repeat(${boardSize}, ${Math.round(28 * (boardZoom / 100))}px)`
               }}
             >
               <div className="w-6 h-6"></div>
 
               {letters.map(l => (
-                <div key={l} className="h-6 flex items-center justify-center text-slate-700 font-mono text-xs font-bold select-none">
+                <div
+                  key={l}
+                  style={{ width: `${Math.round(28 * (boardZoom / 100))}px` }}
+                  className="h-6 flex items-center justify-center text-slate-700 font-mono text-xs font-bold select-none"
+                >
                   {l}
                 </div>
               ))}
 
               {numbers.map((num, rIdx) => (
                 <React.Fragment key={num}>
-                  <div className="w-6 h-7 sm:h-8 flex items-center justify-end pr-1 text-slate-700 font-mono text-xs font-bold select-none">
+                  <div
+                    style={{ height: `${Math.round(28 * (boardZoom / 100))}px` }}
+                    className="w-6 flex items-center justify-end pr-1 text-slate-700 font-mono text-xs font-bold select-none"
+                  >
                     {num}
                   </div>
 
@@ -479,6 +484,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                     const isBeingMoved = draggedShip && draggedShip.id === shipId;
                     const isPreview = hoverCells.some(h => h.r === rIdx && h.c === cIdx);
                     const isMineCell = placedMines.some(m => m.r === rIdx && m.c === cIdx);
+                    const cellDim = Math.round(28 * (boardZoom / 100));
 
                     let cellClass = 'bg-slate-50 border-slate-300 hover:bg-slate-100 hover:border-slate-400';
                     let inlineStyle = {};
@@ -519,8 +525,12 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                         onClick={() => handleCellClick(rIdx, cIdx)}
                         onMouseEnter={() => setHoverCoord({ r: rIdx, c: cIdx })}
                         onMouseLeave={() => setHoverCoord(null)}
-                        style={inlineStyle}
-                        className={`h-7 sm:h-8 rounded-md border flex items-center justify-center transition-all duration-150 cursor-pointer ${cellClass}`}
+                        style={{
+                          ...inlineStyle,
+                          width: `${cellDim}px`,
+                          height: `${cellDim}px`
+                        }}
+                        className={`rounded-md border flex items-center justify-center transition-all duration-150 cursor-pointer ${cellClass}`}
                         title={
                           isOccupied
                             ? 'Kliknij lub przeciągnij, aby przenieść w inne miejsce'
