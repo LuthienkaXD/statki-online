@@ -185,11 +185,17 @@ export default function GameView({
       inlineStyle = myFleetStyle.style;
     }
 
+    const cellPixelSize = Math.round(26 * (boardZoom / 100));
+
     return (
       <div
         key={`${r}-${c}`}
-        style={inlineStyle}
-        className={`h-6 sm:h-7 rounded border flex items-center justify-center relative ${bgStyle}`}
+        style={{
+          ...inlineStyle,
+          width: `${cellPixelSize}px`,
+          height: `${cellPixelSize}px`
+        }}
+        className={`rounded border flex items-center justify-center relative ${bgStyle}`}
       >
         {shot === 'hit' ? (
           <Flame className="w-4 h-4 text-rose-300 animate-pulse fill-rose-500" />
@@ -230,13 +236,19 @@ export default function GameView({
       };
     }
 
+    const cellPixelSize = Math.round(26 * (boardZoom / 100));
+
     return (
       <button
         key={`${r}-${c}`}
         onClick={() => handleShoot(r, c)}
         disabled={!isMyTurn || isGameOver || (!reconActive && !sonarMode && shot !== null && shot !== undefined)}
-        style={inlineStyle}
-        className={`h-6 sm:h-7 rounded border flex items-center justify-center transition-all ${
+        style={{
+          ...inlineStyle,
+          width: `${cellPixelSize}px`,
+          height: `${cellPixelSize}px`
+        }}
+        className={`rounded border flex items-center justify-center transition-all ${
           isMyTurn && !isGameOver && (reconActive || sonarMode || (shot === null || shot === undefined))
             ? 'cursor-pointer hover:border-blue-500 hover:scale-105 hover:ring-2 hover:ring-blue-400'
             : ''
@@ -405,10 +417,10 @@ export default function GameView({
       </div>
 
       {/* Main Game Arena */}
-      <div className="w-full grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+      <div className="w-full flex flex-col xl:flex-row gap-5 items-start justify-center">
         
         {/* Left: Your Fleet */}
-        <div className="xl:col-span-4 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
+        <div className="w-full xl:w-auto flex-1 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
           <div className="w-full flex items-center justify-between mb-2">
             <div className="flex items-center space-x-1.5">
               <Shield className="w-4 h-4 text-blue-600" />
@@ -426,24 +438,23 @@ export default function GameView({
           </div>
 
           <div
-            style={{ zoom: `${boardZoom}%` }}
-            className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl max-w-full overflow-x-auto transition-[zoom] duration-150 origin-top"
+            className="inline-block p-2.5 bg-slate-50 border-2 border-slate-300 rounded-2xl max-w-full overflow-x-auto"
           >
             <div
               className="grid gap-0.5 items-center"
               style={{
-                gridTemplateColumns: `20px repeat(${boardSize}, minmax(20px, 28px))`
+                gridTemplateColumns: `24px repeat(${boardSize}, ${Math.round(26 * (boardZoom / 100))}px)`
               }}
             >
-              <div className="w-5 h-5"></div>
+              <div className="w-6 h-6"></div>
               {letters.map(l => (
-                <div key={l} className="h-5 flex items-center justify-center font-mono font-bold text-slate-700 text-xs select-none">
+                <div key={l} style={{ width: `${Math.round(26 * (boardZoom / 100))}px` }} className="h-6 flex items-center justify-center font-mono font-bold text-slate-700 text-xs select-none">
                   {l}
                 </div>
               ))}
               {numbers.map((n, r) => (
                 <React.Fragment key={n}>
-                  <div className="w-5 h-6 flex items-center justify-end pr-1 font-mono font-bold text-slate-700 text-xs select-none">
+                  <div className="w-6 flex items-center justify-end pr-1 font-mono font-bold text-slate-700 text-xs select-none" style={{ height: `${Math.round(26 * (boardZoom / 100))}px` }}>
                     {n}
                   </div>
                   {letters.map((_, c) => renderMyCell(r, c))}
@@ -503,7 +514,7 @@ export default function GameView({
         </div>
 
         {/* Center: Enemy Board */}
-        <div className="xl:col-span-5 flex flex-col items-center bg-white border-2 border-slate-300 rounded-2xl p-3.5 shadow-md relative">
+        <div className="w-full xl:w-auto flex-1 flex flex-col items-center bg-white border-2 border-slate-300 rounded-2xl p-3.5 shadow-md relative">
           <div className="w-full flex items-center justify-between mb-2">
             <div className="flex items-center space-x-1.5">
               <Crosshair className="w-4 h-4 text-rose-600" />
@@ -526,24 +537,23 @@ export default function GameView({
           </div>
 
           <div
-            style={{ zoom: `${boardZoom}%` }}
-            className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl shadow-inner max-w-full overflow-x-auto transition-[zoom] duration-150 origin-top"
+            className="inline-block p-2.5 bg-slate-50 border-2 border-slate-300 rounded-2xl shadow-inner max-w-full overflow-x-auto"
           >
             <div
               className="grid gap-0.5 items-center"
               style={{
-                gridTemplateColumns: `20px repeat(${boardSize}, minmax(20px, 28px))`
+                gridTemplateColumns: `24px repeat(${boardSize}, ${Math.round(26 * (boardZoom / 100))}px)`
               }}
             >
-              <div className="w-5 h-5"></div>
+              <div className="w-6 h-6"></div>
               {letters.map(l => (
-                <div key={l} className="h-5 flex items-center justify-center font-mono font-bold text-slate-700 text-xs select-none">
+                <div key={l} style={{ width: `${Math.round(26 * (boardZoom / 100))}px` }} className="h-6 flex items-center justify-center font-mono font-bold text-slate-700 text-xs select-none">
                   {l}
                 </div>
               ))}
               {numbers.map((n, r) => (
                 <React.Fragment key={n}>
-                  <div className="w-5 h-6 flex items-center justify-end pr-1 font-mono font-bold text-slate-700 text-xs select-none">
+                  <div className="w-6 flex items-center justify-end pr-1 font-mono font-bold text-slate-700 text-xs select-none" style={{ height: `${Math.round(26 * (boardZoom / 100))}px` }}>
                     {n}
                   </div>
                   {letters.map((_, c) => renderEnemyCell(r, c))}
@@ -605,7 +615,7 @@ export default function GameView({
         </div>
 
         {/* Right: In-Game Chat with Dictionary */}
-        <div className="xl:col-span-3 flex flex-col h-[480px] bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
+        <div className="w-full xl:w-72 2xl:w-80 shrink-0 flex flex-col h-[480px] bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
           <h3 className="font-chakra font-bold text-xs text-slate-900 mb-2 flex items-center justify-between">
             <span>Czat Bitewny</span>
             <span className="text-[10px] text-slate-500 font-mono">Tura {gameState.turnsCount || 1}</span>
