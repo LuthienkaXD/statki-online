@@ -142,8 +142,13 @@ export default function Navbar({
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-slate-500">
-                  W: <span className="text-emerald-600 font-mono font-bold">{user.wins || 0}</span> | P: <span className="text-rose-600 font-mono">{user.losses || 0}</span>
+                <div className="text-[10px] text-slate-500 flex items-center space-x-1.5">
+                  <span>PvP: <span className="text-emerald-600 font-mono font-bold">{user.wins || 0}W</span>/<span className="text-rose-600 font-mono">{user.losses || 0}P</span></span>
+                  {((user.botWins || user.bot_wins) || (user.botLosses || user.bot_losses)) ? (
+                    <span className="text-purple-700 font-semibold border-l border-slate-300 pl-1.5" title="Wygrane / Przegrane z Botem">
+                      Bot: {user.botWins ?? user.bot_wins ?? 0}W/{user.botLosses ?? user.bot_losses ?? 0}P
+                    </span>
+                  ) : null}
                 </div>
               </button>
               <button

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trophy, Calendar, Award, Flame, RefreshCw } from 'lucide-react';
+import { X, Trophy, Calendar, Award, Flame, RefreshCw, Bot } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export default function LeaderboardModal({ isOpen, onClose }) {
-  const [tab, setTab] = useState('daily'); // 'daily' or 'all-time'
+  const [tab, setTab] = useState('daily'); // 'daily', 'all-time', 'bot'
   const [dailyData, setDailyData] = useState([]);
   const [allTimeData, setAllTimeData] = useState([]);
+  const [botData, setBotData] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
 
@@ -18,16 +19,19 @@ export default function LeaderboardModal({ isOpen, onClose }) {
   const fetchLeaderboards = async () => {
     setLoading(true);
     try {
-      const [resDaily, resAllTime] = await Promise.all([
+      const [resDaily, resAllTime, resBot] = await Promise.all([
         fetch(`/api/leaderboard/daily?date=${selectedDate}`),
-        fetch('/api/leaderboard/all-time')
+        fetch('/api/leaderboard/all-time'),
+        fetch('/api/leaderboard/bot')
       ]);
 
       const dataDaily = await resDaily.json();
       const dataAllTime = await resAllTime.json();
+      const dataBot = await resBot.json();
 
       setDailyData(dataDaily.leaderboard || []);
       setAllTimeData(dataAllTime.leaderboard || []);
+      setBotData(dataBot.leaderboard || []);
     } catch (err) {
       console.error('Error fetching leaderboards:', err);
     } finally {
@@ -36,6 +40,8 @@ export default function LeaderboardModal({ isOpen, onClose }) {
   };
 
   if (!isOpen) return null;
+
+  const currentList = tab === 'daily' ? dailyData : (tab === 'all-time' ? allTimeData : botData);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
@@ -59,35 +65,46 @@ export default function LeaderboardModal({ isOpen, onClose }) {
               Hala Sław Floty
             </h2>
             <p className="text-xs text-slate-500">
-              Sprawdź najlepszych graczy dnia oraz ranking wszech czasów
+              Rankingi graczy PvP oraz osobne podsumowanie bitew treningowych z botem
             </p>
           </div>
         </div>
 
         {/* Tab Controls & Date picker */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 overflow-x-auto">
             <button
               onClick={() => { setTab('daily'); sounds.playClick(); }}
-              className={`flex items-center space-x-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                 tab === 'daily'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Calendar className="w-3.5 h-3.5 text-blue-600" />
-              <span>Ranking Dzienny</span>
+              <span>Ranking Dzienny (PvP)</span>
             </button>
             <button
               onClick={() => { setTab('all-time'); sounds.playClick(); }}
-              className={`flex items-center space-x-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                 tab === 'all-time'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Award className="w-3.5 h-3.5 text-amber-600" />
-              <span>Ranking Ogólny</span>
+              <span>Ranking Ogólny (PvP)</span>
+            </button>
+            <button
+              onClick={() => { setTab('bot'); sounds.playClick(); }}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+                tab === 'bot'
+                  ? 'bg-white text-indigo-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Bot className="w-3.5 h-3.5 text-purple-600" />
+              <span>Gry z Botem</span>
             </button>
           </div>
 
@@ -124,10 +141,16 @@ export default function LeaderboardModal({ isOpen, onClose }) {
                     <th className="py-2.5 px-3 text-center">Rozegrane</th>
                     <th className="py-2.5 px-3 text-right">Win Rate</th>
                   </>
+                ) : tab === 'all-time' ? (
+                  <>
+                    <th className="py-2.5 px-3 text-center">Wygrane (PvP)</th>
+                    <th className="py-2.5 px-3 text-center">Porażki</th>
+                    <th className="py-2.5 px-3 text-right">Skuteczność</th>
+                  </>
                 ) : (
                   <>
-                    <th className="py-2.5 px-3 text-center">Wygrane</th>
-                    <th className="py-2.5 px-3 text-center">Porażki</th>
+                    <th className="py-2.5 px-3 text-center">Wygrane z botem</th>
+                    <th className="py-2.5 px-3 text-center">Porażki z botem</th>
                     <th className="py-2.5 px-3 text-right">Skuteczność</th>
                   </>
                 )}
@@ -138,24 +161,26 @@ export default function LeaderboardModal({ isOpen, onClose }) {
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-400">
                     <RefreshCw className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
-                    Ładowanie rankingu...
+                    Ładowanie statystyk...
                   </td>
                 </tr>
-              ) : (tab === 'daily' ? dailyData : allTimeData).length === 0 ? (
+              ) : currentList.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-500">
-                    Brak rozegranych bitew w wybranym dniu. Wygraj pierwszą bitwę, aby zająć 1. miejsce!
+                    {tab === 'bot' 
+                      ? 'Brak rozegranych gier z botem. Zagraj z Komputerem w trybie jednoosobowym!' 
+                      : 'Brak rozegranych bitew PvP. Wygraj bitwę z innym graczem, aby zająć 1. miejsce!'}
                   </td>
                 </tr>
               ) : (
-                (tab === 'daily' ? dailyData : allTimeData).map((row, index) => {
+                currentList.map((row, index) => {
                   const isGold = index === 0;
                   const isSilver = index === 1;
                   const isBronze = index === 2;
 
                   return (
                     <tr
-                      key={row.userId || row.username + index}
+                      key={row.userId || row.id || row.username + index}
                       className={`hover:bg-slate-50 transition ${
                         isGold ? 'bg-amber-50/60 font-semibold' : ''
                       }`}
@@ -189,7 +214,7 @@ export default function LeaderboardModal({ isOpen, onClose }) {
                             {row.winRate}%
                           </td>
                         </>
-                      ) : (
+                      ) : tab === 'all-time' ? (
                         <>
                           <td className="py-2.5 px-3 text-center font-mono text-emerald-600 font-bold">
                             {row.wins}
@@ -198,6 +223,18 @@ export default function LeaderboardModal({ isOpen, onClose }) {
                             {row.losses}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-blue-700 font-semibold">
+                            {row.win_rate}%
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-2.5 px-3 text-center font-mono text-emerald-600 font-bold">
+                            {row.wins}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-rose-600">
+                            {row.losses}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-purple-700 font-semibold">
                             {row.win_rate}%
                           </td>
                         </>
@@ -211,7 +248,7 @@ export default function LeaderboardModal({ isOpen, onClose }) {
         </div>
 
         <div className="mt-4 pt-3 border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between">
-          <span>Rankingi aktualizowane natychmiast po każdej wygranej bitwie.</span>
+          <span>Bitwy z botem są zliczane oddzielnie w zakładce „Gry z Botem” i nie wpływają na ranking PvP.</span>
           <button onClick={onClose} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg transition font-medium">
             Zamknij
           </button>

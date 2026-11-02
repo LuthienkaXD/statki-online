@@ -12,6 +12,7 @@ const {
   getUserById,
   getDailyLeaderboard,
   getAllTimeLeaderboard,
+  getBotLeaderboard,
   getRecentMatches,
   getAllUsers,
   updateUserRole,
@@ -79,7 +80,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const user = await createUser(username.trim(), hashPassword(password));
     const token = generateToken(user);
-    res.json({ token, user: { id: user.id, username: user.username, wins: user.wins, losses: user.losses } });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role, wins: user.wins, losses: user.losses, botWins: user.bot_wins || 0, botLosses: user.bot_losses || 0 } });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ error: 'Błąd serwera podczas rejestracji.' });
@@ -105,8 +106,11 @@ app.post('/api/auth/login', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
+        role: user.role,
         wins: user.wins,
         losses: user.losses,
+        botWins: user.bot_wins || 0,
+        botLosses: user.bot_losses || 0,
         hits: user.hits,
         shots: user.shots
       }
@@ -159,6 +163,17 @@ app.get('/api/leaderboard/all-time', async (req, res) => {
   } catch (err) {
     console.error('Error fetching all-time leaderboard:', err);
     res.status(500).json({ error: 'Błąd pobierania rankingu ogólnego.' });
+  }
+});
+
+// Bot battles summary leaderboard
+app.get('/api/leaderboard/bot', async (req, res) => {
+  try {
+    const leaderboard = await getBotLeaderboard();
+    res.json({ leaderboard });
+  } catch (err) {
+    console.error('Error fetching bot leaderboard:', err);
+    res.status(500).json({ error: 'Błąd pobierania statystyk gier z botem.' });
   }
 });
 
@@ -580,17 +595,19 @@ io.on('connection', (socket) => {
 
     if (room.players.p2) {
       if (room.isBotGame) {
-        const { generateRandomFleet } = require('./gameLogic');
+        const { generateRandomFleet, generateRandomMines } = require('./gameLogic');
         room.players.p2.ready = true;
-        room.players.p2.ships = generateRandomFleet();
-        room.players.p2.shotsGrid = Array.from({ length: 10 }, () => Array(10).fill(null));
+        room.players.p2.ships = generateRandomFleet(room.boardSize);
+        room.players.p2.mines = room.options.mines ? generateRandomMines(room.players.p2.ships, room.boardSize, room.options.minesCount) : [];
+        room.players.p2.shotsGrid = Array.from({ length: room.boardSize }, () => Array(room.boardSize).fill(null));
         room.players.p2.stats = { hits: 0, shots: 0 };
         const { BotAI } = require('./botAI');
-        room.botAI = new BotAI();
+        room.botAI = new BotAI(room.boardSize);
       } else {
         room.players.p2.ready = false;
         room.players.p2.ships = null;
-        room.players.p2.shotsGrid = Array.from({ length: 10 }, () => Array(10).fill(null));
+        room.players.p2.mines = [];
+        room.players.p2.shotsGrid = Array.from({ length: room.boardSize }, () => Array(room.boardSize).fill(null));
         room.players.p2.stats = { hits: 0, shots: 0 };
       }
     }

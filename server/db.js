@@ -48,6 +48,8 @@ async function initDb() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         wins INT NOT NULL DEFAULT 0,
         losses INT NOT NULL DEFAULT 0,
+        bot_wins INT NOT NULL DEFAULT 0,
+        bot_losses INT NOT NULL DEFAULT 0,
         hits INT NOT NULL DEFAULT 0,
         shots INT NOT NULL DEFAULT 0,
         role VARCHAR(20) NOT NULL DEFAULT 'user',
@@ -57,11 +59,17 @@ async function initDb() {
       -- Add columns if missing in existing table
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'role') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role') THEN
           ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user';
         END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_banned') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'is_banned') THEN
           ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'bot_wins') THEN
+          ALTER TABLE users ADD COLUMN bot_wins INT NOT NULL DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'bot_losses') THEN
+          ALTER TABLE users ADD COLUMN bot_losses INT NOT NULL DEFAULT 0;
         END IF;
       END $$;
 
@@ -75,8 +83,16 @@ async function initDb() {
         winner_name VARCHAR(100) NOT NULL,
         date_day VARCHAR(10) NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        turns_count INT NOT NULL DEFAULT 0
+        turns_count INT NOT NULL DEFAULT 0,
+        is_bot BOOLEAN NOT NULL DEFAULT false
       );
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'matches' AND column_name = 'is_bot') THEN
+          ALTER TABLE matches ADD COLUMN is_bot BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+      END $$;
 
       CREATE TABLE IF NOT EXISTS chat_presets (
         id SERIAL PRIMARY KEY,
@@ -145,6 +161,8 @@ async function initDb() {
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         wins INTEGER NOT NULL DEFAULT 0,
         losses INTEGER NOT NULL DEFAULT 0,
+        bot_wins INTEGER NOT NULL DEFAULT 0,
+        bot_losses INTEGER NOT NULL DEFAULT 0,
         hits INTEGER NOT NULL DEFAULT 0,
         shots INTEGER NOT NULL DEFAULT 0,
         role TEXT NOT NULL DEFAULT 'user',
@@ -162,6 +180,7 @@ async function initDb() {
         date_day TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         turns_count INTEGER NOT NULL DEFAULT 0,
+        is_bot INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY(player1_id) REFERENCES users(id),
         FOREIGN KEY(player2_id) REFERENCES users(id)
       );
@@ -220,13 +239,13 @@ async function getUserByUsername(username) {
 async function getUserById(id) {
   if (isPostgres) {
     const res = await pgPool.query(
-      'SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots FROM users WHERE id = $1',
+      'SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots FROM users WHERE id = $1',
       [id]
     );
     return res.rows[0] || null;
   }
   const stmt = sqliteDb.prepare(
-    'SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots FROM users WHERE id = ?'
+    'SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots FROM users WHERE id = ?'
   );
   return stmt.get(id) || null;
 }
@@ -237,7 +256,7 @@ async function createUser(username, passwordHash, role = 'user') {
 
   if (isPostgres) {
     const res = await pgPool.query(
-      'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role, is_banned, created_at, wins, losses, hits, shots',
+      'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots',
       [username, passwordHash, actualRole]
     );
     return res.rows[0];
@@ -247,7 +266,7 @@ async function createUser(username, passwordHash, role = 'user') {
   return getUserById(Number(info.lastInsertRowid));
 }
 
-async function recordMatch({ player1, player2, winner, turns = 0 }) {
+async function recordMatch({ player1, player2, winner, turns = 0, isBot = false }) {
   const today = new Date().toISOString().slice(0, 10);
   const p1Id = player1.userId || null;
   const p1Name = player1.name || 'Gość';
@@ -255,58 +274,95 @@ async function recordMatch({ player1, player2, winner, turns = 0 }) {
   const p2Name = player2.name || 'Gość';
   const winnerId = winner.userId || null;
   const winnerName = winner.name || 'Gość';
+  const matchIsBot = Boolean(isBot || p2Name.includes('Komputer') || p1Name.includes('Komputer'));
 
   if (isPostgres) {
     await pgPool.query(`
-      INSERT INTO matches (player1_id, player1_name, player2_id, player2_name, winner_id, winner_name, date_day, turns_count)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [p1Id, p1Name, p2Id, p2Name, winnerId, winnerName, today, turns]);
+      INSERT INTO matches (player1_id, player1_name, player2_id, player2_name, winner_id, winner_name, date_day, turns_count, is_bot)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [p1Id, p1Name, p2Id, p2Name, winnerId, winnerName, today, turns, matchIsBot]);
 
     if (p1Id) {
       const isWinner = winnerId === p1Id;
-      await pgPool.query(`
-        UPDATE users
-        SET wins = wins + $1, losses = losses + $2, hits = hits + $3, shots = shots + $4
-        WHERE id = $5
-      `, [isWinner ? 1 : 0, isWinner ? 0 : 1, player1.hits || 0, player1.shots || 0, p1Id]);
+      if (matchIsBot) {
+        // Bot battle stats: recorded separately in bot_wins and bot_losses
+        await pgPool.query(`
+          UPDATE users
+          SET bot_wins = bot_wins + $1, bot_losses = bot_losses + $2, hits = hits + $3, shots = shots + $4
+          WHERE id = $5
+        `, [isWinner ? 1 : 0, isWinner ? 0 : 1, player1.hits || 0, player1.shots || 0, p1Id]);
+      } else {
+        // PvP battle: updates general PvP wins and losses
+        await pgPool.query(`
+          UPDATE users
+          SET wins = wins + $1, losses = losses + $2, hits = hits + $3, shots = shots + $4
+          WHERE id = $5
+        `, [isWinner ? 1 : 0, isWinner ? 0 : 1, player1.hits || 0, player1.shots || 0, p1Id]);
+      }
     }
 
     if (p2Id) {
       const isWinner = winnerId === p2Id;
-      await pgPool.query(`
-        UPDATE users
-        SET wins = wins + $1, losses = losses + $2, hits = hits + $3, shots = shots + $4
-        WHERE id = $5
-      `, [isWinner ? 1 : 0, isWinner ? 0 : 1, player2.hits || 0, player2.shots || 0, p2Id]);
+      if (matchIsBot) {
+        await pgPool.query(`
+          UPDATE users
+          SET bot_wins = bot_wins + $1, bot_losses = bot_losses + $2, hits = hits + $3, shots = shots + $4
+          WHERE id = $5
+        `, [isWinner ? 1 : 0, isWinner ? 0 : 1, player2.hits || 0, player2.shots || 0, p2Id]);
+      } else {
+        await pgPool.query(`
+          UPDATE users
+          SET wins = wins + $1, losses = losses + $2, hits = hits + $3, shots = shots + $4
+          WHERE id = $5
+        `, [isWinner ? 1 : 0, isWinner ? 0 : 1, player2.hits || 0, player2.shots || 0, p2Id]);
+      }
     }
     return;
   }
 
   // SQLite fallback
   const insertMatch = sqliteDb.prepare(`
-    INSERT INTO matches (player1_id, player1_name, player2_id, player2_name, winner_id, winner_name, date_day, turns_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO matches (player1_id, player1_name, player2_id, player2_name, winner_id, winner_name, date_day, turns_count, is_bot)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  insertMatch.run(p1Id, p1Name, p2Id, p2Name, winnerId, winnerName, today, turns);
+  insertMatch.run(p1Id, p1Name, p2Id, p2Name, winnerId, winnerName, today, turns, matchIsBot ? 1 : 0);
 
   if (p1Id) {
     const isWinner = winnerId === p1Id;
-    const upd1 = sqliteDb.prepare(`
-      UPDATE users
-      SET wins = wins + ?, losses = losses + ?, hits = hits + ?, shots = shots + ?
-      WHERE id = ?
-    `);
-    upd1.run(isWinner ? 1 : 0, isWinner ? 0 : 1, player1.hits || 0, player1.shots || 0, p1Id);
+    if (matchIsBot) {
+      const upd1 = sqliteDb.prepare(`
+        UPDATE users
+        SET bot_wins = bot_wins + ?, bot_losses = bot_losses + ?, hits = hits + ?, shots = shots + ?
+        WHERE id = ?
+      `);
+      upd1.run(isWinner ? 1 : 0, isWinner ? 0 : 1, player1.hits || 0, player1.shots || 0, p1Id);
+    } else {
+      const upd1 = sqliteDb.prepare(`
+        UPDATE users
+        SET wins = wins + ?, losses = losses + ?, hits = hits + ?, shots = shots + ?
+        WHERE id = ?
+      `);
+      upd1.run(isWinner ? 1 : 0, isWinner ? 0 : 1, player1.hits || 0, player1.shots || 0, p1Id);
+    }
   }
 
   if (p2Id) {
     const isWinner = winnerId === p2Id;
-    const upd2 = sqliteDb.prepare(`
-      UPDATE users
-      SET wins = wins + ?, losses = losses + ?, hits = hits + ?, shots = shots + ?
-      WHERE id = ?
-    `);
-    upd2.run(isWinner ? 1 : 0, isWinner ? 0 : 1, player2.hits || 0, player2.shots || 0, p2Id);
+    if (matchIsBot) {
+      const upd2 = sqliteDb.prepare(`
+        UPDATE users
+        SET bot_wins = bot_wins + ?, bot_losses = bot_losses + ?, hits = hits + ?, shots = shots + ?
+        WHERE id = ?
+      `);
+      upd2.run(isWinner ? 1 : 0, isWinner ? 0 : 1, player2.hits || 0, player2.shots || 0, p2Id);
+    } else {
+      const upd2 = sqliteDb.prepare(`
+        UPDATE users
+        SET wins = wins + ?, losses = losses + ?, hits = hits + ?, shots = shots + ?
+        WHERE id = ?
+      `);
+      upd2.run(isWinner ? 1 : 0, isWinner ? 0 : 1, player2.hits || 0, player2.shots || 0, p2Id);
+    }
   }
 }
 
@@ -321,7 +377,8 @@ async function getDailyLeaderboard(targetDate) {
         COUNT(*)::int AS wins_today,
         (
           SELECT COUNT(*)::int FROM matches m2 
-          WHERE m2.date_day = $1 
+          WHERE m2.date_day = $1
+          AND m2.is_bot = false
           AND (
             (m2.winner_id IS NOT NULL AND (m2.player1_id = m.winner_id OR m2.player2_id = m.winner_id))
             OR (m2.winner_id IS NULL AND (m2.player1_name = m.winner_name OR m2.player2_name = m.winner_name))
@@ -329,6 +386,7 @@ async function getDailyLeaderboard(targetDate) {
         ) AS games_today
       FROM matches m
       WHERE date_day = $2
+      AND is_bot = false
       GROUP BY winner_id, winner_name
       ORDER BY wins_today DESC
       LIMIT 50
@@ -351,7 +409,8 @@ async function getDailyLeaderboard(targetDate) {
       COUNT(*) AS wins_today,
       (
         SELECT COUNT(*) FROM matches m2 
-        WHERE m2.date_day = ? 
+        WHERE m2.date_day = ?
+        AND (m2.is_bot = 0 OR m2.is_bot IS FALSE)
         AND (
           (m2.winner_id IS NOT NULL AND (m2.player1_id = m.winner_id OR m2.player2_id = m.winner_id))
           OR (m2.winner_id IS NULL AND (m2.player1_name = m.winner_name OR m2.player2_name = m.winner_name))
@@ -359,6 +418,7 @@ async function getDailyLeaderboard(targetDate) {
       ) AS games_today
     FROM matches m
     WHERE date_day = ?
+    AND (is_bot = 0 OR is_bot IS FALSE)
     GROUP BY winner_id, winner_name
     ORDER BY wins_today DESC
     LIMIT 50
@@ -414,6 +474,42 @@ async function getAllTimeLeaderboard() {
   }));
 }
 
+async function getBotLeaderboard() {
+  if (isPostgres) {
+    const res = await pgPool.query(`
+      SELECT id, username, bot_wins AS wins, bot_losses AS losses, (bot_wins + bot_losses) AS total_games,
+        CASE 
+          WHEN (bot_wins + bot_losses) > 0 THEN ROUND((bot_wins * 100.0) / (bot_wins + bot_losses), 1)
+          ELSE 0
+        END AS win_rate
+      FROM users
+      WHERE (bot_wins + bot_losses) > 0
+      ORDER BY bot_wins DESC, win_rate DESC
+      LIMIT 50
+    `);
+    return res.rows.map((r, idx) => ({
+      rank: idx + 1,
+      ...r
+    }));
+  }
+
+  const stmt = sqliteDb.prepare(`
+    SELECT id, username, bot_wins AS wins, bot_losses AS losses, (bot_wins + bot_losses) AS total_games,
+      CASE 
+        WHEN (bot_wins + bot_losses) > 0 THEN ROUND((bot_wins * 100.0) / (bot_wins + bot_losses), 1)
+        ELSE 0
+      END AS win_rate
+    FROM users
+    WHERE (bot_wins + bot_losses) > 0
+    ORDER BY bot_wins DESC, win_rate DESC
+    LIMIT 50
+  `);
+  return stmt.all().map((r, idx) => ({
+    rank: idx + 1,
+    ...r
+  }));
+}
+
 async function getRecentMatches(userId = null, limit = 10) {
   if (isPostgres) {
     if (userId) {
@@ -445,13 +541,13 @@ async function getRecentMatches(userId = null, limit = 10) {
 async function getAllUsers() {
   if (isPostgres) {
     const res = await pgPool.query(`
-      SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots
+      SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots
       FROM users
       ORDER BY id ASC
     `);
     return res.rows;
   }
-  return sqliteDb.prepare('SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots FROM users ORDER BY id ASC').all();
+  return sqliteDb.prepare('SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots FROM users ORDER BY id ASC').all();
 }
 
 async function updateUserRole(userId, newRole) {
@@ -561,6 +657,7 @@ module.exports = {
   recordMatch,
   getDailyLeaderboard,
   getAllTimeLeaderboard,
+  getBotLeaderboard,
   getRecentMatches,
   // Admin exports
   getAllUsers,

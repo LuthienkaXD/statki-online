@@ -327,7 +327,14 @@ export default function AdminModal({ isOpen, onClose, token }) {
                           )}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-slate-600">
-                          <span className="text-emerald-600 font-bold">{u.wins} W</span> / <span className="text-rose-600">{u.losses} P</span>
+                          <div>
+                            <span className="text-emerald-600 font-bold">{u.wins} W</span> / <span className="text-rose-600">{u.losses} P</span> <span className="text-[10px] text-slate-400 font-sans">(PvP)</span>
+                          </div>
+                          {(u.bot_wins > 0 || u.bot_losses > 0) && (
+                            <div className="text-[10px] text-purple-700">
+                              Bot: {u.bot_wins || 0}W / {u.bot_losses || 0}P
+                            </div>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 text-right space-x-1">
                           <button

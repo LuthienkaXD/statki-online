@@ -361,7 +361,8 @@ class GameRoom {
           player1: { userId: this.players.p1.userId, name: this.players.p1.name, hits: this.players.p1.stats.hits, shots: this.players.p1.stats.shots },
           player2: { userId: this.players.p2.userId, name: this.players.p2.name, hits: this.players.p2.stats.hits, shots: this.players.p2.stats.shots },
           winner: { userId: shooter.userId, name: shooter.name },
-          turns: this.turnsCount
+          turns: this.turnsCount,
+          isBot: Boolean(this.isBotGame)
         });
       }
       // Hit keeps turn naturally
