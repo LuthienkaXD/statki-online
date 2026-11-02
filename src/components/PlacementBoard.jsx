@@ -34,7 +34,9 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
   const [errorMessage, setErrorMessage] = useState('');
   const [customColor, setCustomColor] = useState('#2563eb');
 
-  const maxMines = options.mines ? (options.minesCount || 2) : 0;
+  // Mines are enabled if options.mines is true OR if options.mines is undefined (default enabled)
+  const minesEnabled = options.mines !== false;
+  const maxMines = minesEnabled ? (Number(options.minesCount) || 2) : 0;
 
   // Drag-and-drop state
   const [draggedShip, setDraggedShip] = useState(null);
@@ -369,6 +371,14 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
         </div>
       )}
 
+      {/* Floating alert/instruction when in mine placement mode */}
+      {mineMode && (
+        <div className="mb-3 px-4 py-1.5 bg-rose-50 border border-rose-300 rounded-xl text-rose-900 text-xs flex items-center space-x-2 font-medium shadow-xs animate-pulse">
+          <Bomb className="w-4 h-4 text-rose-600" />
+          <span>Tryb Min Morskich aktywny: Kliknij w wolną kratkę wodną planszy, aby postawić minę ({placedMines.length}/{maxMines}). Kliknij postawioną minę, by ją usunąć.</span>
+        </div>
+      )}
+
       {errorMessage && (
         <div className="mb-4 px-4 py-2 bg-rose-50 border border-rose-300 rounded-lg text-rose-700 text-xs flex items-center space-x-2 animate-bounce shadow-xs">
           <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
@@ -468,31 +478,29 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
 
           {/* Quick controls beneath board */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-            {maxMines > 0 && (
-              <button
-                onClick={() => {
-                  sounds.playClick();
-                  setMineMode(!mineMode);
-                  setSelectedDockShip(null);
-                  setDraggedShip(null);
-                  setErrorMessage(
-                    !mineMode
-                      ? `Tryb Min Morskich aktywny! Kliknij wolne pole wodne na planszy, aby umieścić minę (${placedMines.length}/${maxMines}).`
-                      : ''
-                  );
-                }}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer border ${
-                  mineMode
-                    ? 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-400'
-                    : 'bg-white hover:bg-rose-50 text-rose-700 border-rose-300'
-                }`}
-              >
-                <Bomb className="w-3.5 h-3.5" />
-                <span>
-                  {mineMode ? 'Zakończ rozstawianie min' : `Rozstaw miny (${placedMines.length}/${maxMines})`}
-                </span>
-              </button>
-            )}
+            <button
+              onClick={() => {
+                sounds.playClick();
+                setMineMode(!mineMode);
+                setSelectedDockShip(null);
+                setDraggedShip(null);
+                setErrorMessage(
+                  !mineMode
+                    ? `Tryb Min Morskich aktywny! Kliknij wolne pole wodne na planszy, aby umieścić minę (${placedMines.length}/${maxMines || 2}).`
+                    : ''
+                );
+              }}
+              className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs transition cursor-pointer border ${
+                mineMode
+                  ? 'bg-rose-600 text-white border-rose-600 ring-4 ring-rose-400/40 animate-pulse'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+              }`}
+            >
+              <Bomb className="w-4 h-4 text-rose-600" />
+              <span>
+                {mineMode ? 'Zakończ rozstawianie min' : `Rozstaw miny (${placedMines.length}/${maxMines || 2})`}
+              </span>
+            </button>
 
             <button
               onClick={handleRandomize}
