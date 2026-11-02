@@ -148,6 +148,9 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
   const handleCellClick = (r, c) => {
     sounds.playClick();
 
+    // Helper: is this cell occupied by any ship?
+    const isOccupiedByShip = placedShips.some(s => s.cells.some(cell => cell.r === r && cell.c === c));
+
     // If in Mine Placement mode
     if (mineMode && maxMines > 0) {
       // Check if clicked cell has a mine already -> remove it
@@ -159,8 +162,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
       }
 
       // Check if cell is occupied by a ship
-      const isShipCell = grid[r][c] !== 0;
-      if (isShipCell) {
+      if (isOccupiedByShip) {
         setErrorMessage('Mina morska musi znajdować się w wolnej wodzie (nie na statku)!');
         return;
       }
@@ -173,6 +175,14 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
 
       setPlacedMines(prev => [...prev, { r, c }]);
       setErrorMessage('');
+      return;
+    }
+
+    // Check if clicked on a placed mine -> pickup or remove mine
+    const clickedMineIdx = placedMines.findIndex(m => m.r === r && m.c === c);
+    if (clickedMineIdx !== -1 && !activeShipSpec) {
+      setPlacedMines(prev => prev.filter((_, idx) => idx !== clickedMineIdx));
+      setErrorMessage('Usunąłeś minę z planszy (zwrócona do paska doków).');
       return;
     }
 
@@ -281,7 +291,8 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
     if (draggedMine) {
       sounds.playClick();
       // Cannot place mine on top of a ship
-      if (grid[r][c] !== 0) {
+      const isOccupiedByShip = placedShips.some(s => s.cells.some(cell => cell.r === r && cell.c === c));
+      if (isOccupiedByShip) {
         setErrorMessage('Mina morska musi znajdować się w wolnej wodzie (nie na statku)!');
         setDraggedMine(null);
         return;
