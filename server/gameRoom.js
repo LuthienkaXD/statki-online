@@ -45,12 +45,13 @@ class GameRoom {
       this.botAI = new BotAI(this.boardSize);
       const botShips = generateRandomFleet(this.boardSize);
       const botMines = this.options.mines ? generateRandomMines(botShips, this.boardSize, this.options.minesCount) : [];
+      const botName = options.botName || 'Komputer (Sławomir)';
 
       this.players.p2 = {
         key: 'p2',
         id: 'bot',
         socketId: 'bot',
-        name: 'Komputer (Kapitan Morgan)',
+        name: botName,
         userId: null,
         isBot: true,
         ready: true,

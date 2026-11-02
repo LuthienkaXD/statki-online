@@ -22,6 +22,10 @@ const {
   getChatPresets,
   addChatPreset,
   deleteChatPreset,
+  getBotNames,
+  addBotName,
+  deleteBotName,
+  getRandomBotName,
   getSystemSettings,
   updateSystemSetting,
   getAdminStats
@@ -307,6 +311,38 @@ app.delete('/api/admin/chat-presets/:id', authMiddleware, adminMiddleware, async
   }
 });
 
+// Bot Names Admin
+app.get('/api/admin/bot-names', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const botNames = await getBotNames();
+    res.json({ botNames });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd pobierania imion botów.' });
+  }
+});
+
+app.post('/api/admin/bot-names', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Imię bota nie może być puste.' });
+    }
+    const created = await addBotName(name.trim());
+    res.json({ botName: created });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd dodawania imienia bota.' });
+  }
+});
+
+app.delete('/api/admin/bot-names/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await deleteBotName(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd usuwania imienia bota.' });
+  }
+});
+
 // System Settings Admin
 app.get('/api/admin/settings', authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -402,10 +438,18 @@ io.on('connection', (socket) => {
       if (settings && settings.max_mines) maxMines = Number(settings.max_mines) || 2;
     } catch (e) {}
 
+    let chosenBotName = 'Komputer (Sławomir)';
+    if (isBot) {
+      try {
+        chosenBotName = await getRandomBotName();
+      } catch (e) {}
+    }
+
     const gameOptions = {
       ...options,
       boardSize: Number(boardSize) || 10,
-      minesCount: maxMines
+      minesCount: maxMines,
+      botName: chosenBotName
     };
 
     const room = new GameRoom(roomId, isBot, gameOptions);
@@ -596,6 +640,10 @@ io.on('connection', (socket) => {
     if (room.players.p2) {
       if (room.isBotGame) {
         const { generateRandomFleet, generateRandomMines } = require('./gameLogic');
+        getRandomBotName().then(newName => {
+          if (room.players.p2) room.players.p2.name = newName;
+          broadcastRoomState(room);
+        }).catch(() => {});
         room.players.p2.ready = true;
         room.players.p2.ships = generateRandomFleet(room.boardSize);
         room.players.p2.mines = room.options.mines ? generateRandomMines(room.players.p2.ships, room.boardSize, room.options.minesCount) : [];

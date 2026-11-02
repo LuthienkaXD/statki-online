@@ -12,16 +12,19 @@ import {
   Plus,
   X,
   AlertTriangle,
-  Crown
+  Crown,
+  Bot
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export default function AdminModal({ isOpen, onClose, token }) {
-  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'dictionary' | 'settings' | 'overview'
+  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'bot-names' | 'dictionary' | 'settings' | 'overview'
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [presets, setPresets] = useState([]);
   const [newPresetText, setNewPresetText] = useState('');
+  const [botNames, setBotNames] = useState([]);
+  const [newBotName, setNewBotName] = useState('');
   const [systemSettings, setSystemSettings] = useState({
     maintenance_mode: 'false',
     announcement: '',
@@ -49,17 +52,19 @@ export default function AdminModal({ isOpen, onClose, token }) {
   const loadAllAdminData = async () => {
     setLoading(true);
     try {
-      const [statsRes, usersRes, presetsRes, settingsRes] = await Promise.all([
+      const [statsRes, usersRes, presetsRes, settingsRes, botNamesRes] = await Promise.all([
         fetch('/api/admin/stats', { headers }),
         fetch('/api/admin/users', { headers }),
         fetch('/api/admin/chat-presets', { headers }),
-        fetch('/api/admin/settings', { headers })
+        fetch('/api/admin/settings', { headers }),
+        fetch('/api/admin/bot-names', { headers })
       ]);
 
       if (statsRes.ok) setStats((await statsRes.json()));
       if (usersRes.ok) setUsers((await usersRes.json()).users || []);
       if (presetsRes.ok) setPresets((await presetsRes.json()).presets || []);
       if (settingsRes.ok) setSystemSettings((await settingsRes.json()).settings || {});
+      if (botNamesRes.ok) setBotNames((await botNamesRes.json()).botNames || []);
     } catch (err) {
       console.error('Error loading admin data:', err);
     } finally {
@@ -181,6 +186,44 @@ export default function AdminModal({ isOpen, onClose, token }) {
     }
   };
 
+  // Bot names actions
+  const handleAddBotName = async (e) => {
+    e.preventDefault();
+    sounds.playClick();
+    if (!newBotName.trim()) return;
+
+    try {
+      const res = await fetch('/api/admin/bot-names', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: newBotName.trim() })
+      });
+      if (res.ok) {
+        setNewBotName('');
+        showFeedback('Dodano nowe imię bota do puli losowania!');
+        loadAllAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteBotName = async (id) => {
+    sounds.playClick();
+    try {
+      const res = await fetch(`/api/admin/bot-names/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+      if (res.ok) {
+        showFeedback('Usunięto imię bota z puli');
+        loadAllAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // System settings actions
   const handleSaveSetting = async (key, val) => {
     sounds.playClick();
@@ -242,6 +285,7 @@ export default function AdminModal({ isOpen, onClose, token }) {
         <div className="flex border-b border-slate-200 bg-slate-50 px-4 overflow-x-auto">
           {[
             { id: 'users', label: 'Użytkownicy', icon: Users, count: users.length },
+            { id: 'bot-names', label: 'Imiona Botów', icon: Bot, count: botNames.length },
             { id: 'dictionary', label: 'Słownik Czatu Bitewnego', icon: MessageSquare, count: presets.length },
             { id: 'settings', label: 'Ustawienia Globalne & Komunikaty', icon: Settings },
             { id: 'overview', label: 'Statystyki Serwera', icon: Activity }
@@ -374,6 +418,62 @@ export default function AdminModal({ isOpen, onClose, token }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: BOT NAMES */}
+          {activeTab === 'bot-names' && (
+            <div className="space-y-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 text-xs text-purple-950 leading-relaxed">
+                <strong>Pula imion dla botów:</strong> Podczas tworzenia gry jednoosobowej lub rewanżu, system losuje imię komputera z poniższej listy (np. <em>Sławomir</em>, <em>Piotr</em>, <em>Tomasz</em>, <em>Szybki Grzesiek</em>). Możesz w każdej chwili dopisać nowe imiona lub usunąć niechciane.
+              </div>
+
+              {/* Add bot name form */}
+              <form onSubmit={handleAddBotName} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newBotName}
+                  onChange={(e) => setNewBotName(e.target.value)}
+                  placeholder="Wpisz nowe imię bota, np. 'Wilk Morski', 'Kapitan Nemo'..."
+                  className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  maxLength={50}
+                />
+                <button
+                  type="submit"
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-xs transition shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Dodaj imię bota</span>
+                </button>
+              </form>
+
+              {/* Bot names list */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-2">
+                {botNames.map(b => (
+                  <div
+                    key={b.id}
+                    className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs shadow-2xs hover:border-purple-300 transition"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span className="w-6 h-6 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
+                        🤖
+                      </span>
+                      <span className="font-semibold text-slate-900 font-chakra tracking-wide">
+                        {b.name}
+                      </span>
+                    </div>
+                    {botNames.length > 1 && (
+                      <button
+                        onClick={() => handleDeleteBotName(b.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
+                        title="Usuń to imię z puli"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

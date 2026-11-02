@@ -37,6 +37,13 @@ const DEFAULT_CHAT_PRESETS = [
   'Niezły strzał!'
 ];
 
+const DEFAULT_BOT_NAMES = [
+  'Sławomir',
+  'Piotr',
+  'Tomasz',
+  'Szybki Grzesiek'
+];
+
 // Initialize tables and run migrations
 async function initDb() {
   if (isPostgres) {
@@ -100,6 +107,12 @@ async function initDb() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS bot_names (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS system_settings (
         key VARCHAR(50) PRIMARY KEY,
         value TEXT NOT NULL,
@@ -130,6 +143,14 @@ async function initDb() {
     if (presetsCheck.rows[0].cnt === 0) {
       for (const text of DEFAULT_CHAT_PRESETS) {
         await pgPool.query('INSERT INTO chat_presets (text) VALUES ($1) ON CONFLICT DO NOTHING', [text]);
+      }
+    }
+
+    // Seed default bot names if empty
+    const botNamesCheck = await pgPool.query('SELECT COUNT(*)::int as cnt FROM bot_names');
+    if (botNamesCheck.rows[0].cnt === 0) {
+      for (const name of DEFAULT_BOT_NAMES) {
+        await pgPool.query('INSERT INTO bot_names (name) VALUES ($1) ON CONFLICT DO NOTHING', [name]);
       }
     }
 
@@ -190,6 +211,11 @@ async function initDb() {
         text TEXT UNIQUE NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS bot_names (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS system_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
@@ -215,6 +241,12 @@ async function initDb() {
     if (cnt === 0) {
       const ins = sqliteDb.prepare('INSERT OR IGNORE INTO chat_presets (text) VALUES (?)');
       for (const t of DEFAULT_CHAT_PRESETS) ins.run(t);
+    }
+
+    const botCnt = sqliteDb.prepare('SELECT COUNT(*) as cnt FROM bot_names').get().cnt;
+    if (botCnt === 0) {
+      const insBot = sqliteDb.prepare('INSERT OR IGNORE INTO bot_names (name) VALUES (?)');
+      for (const bn of DEFAULT_BOT_NAMES) insBot.run(bn);
     }
 
     sqliteDb.prepare(`
@@ -613,6 +645,42 @@ async function deleteChatPreset(id) {
   return true;
 }
 
+// Bot Names
+async function getBotNames() {
+  if (isPostgres) {
+    const res = await pgPool.query('SELECT * FROM bot_names ORDER BY id ASC');
+    return res.rows;
+  }
+  return sqliteDb.prepare('SELECT * FROM bot_names ORDER BY id ASC').all();
+}
+
+async function addBotName(name) {
+  if (isPostgres) {
+    const res = await pgPool.query('INSERT INTO bot_names (name) VALUES ($1) RETURNING *', [name]);
+    return res.rows[0];
+  }
+  const info = sqliteDb.prepare('INSERT INTO bot_names (name) VALUES (?)').run(name);
+  return { id: Number(info.lastInsertRowid), name };
+}
+
+async function deleteBotName(id) {
+  if (isPostgres) {
+    await pgPool.query('DELETE FROM bot_names WHERE id = $1', [id]);
+    return true;
+  }
+  sqliteDb.prepare('DELETE FROM bot_names WHERE id = ?').run(id);
+  return true;
+}
+
+async function getRandomBotName() {
+  const names = await getBotNames();
+  if (names && names.length > 0) {
+    const picked = names[Math.floor(Math.random() * names.length)];
+    return `Komputer (${picked.name})`;
+  }
+  return 'Komputer (Sławomir)';
+}
+
 // System Settings
 async function getSystemSettings() {
   if (isPostgres) {
@@ -668,6 +736,10 @@ module.exports = {
   getChatPresets,
   addChatPreset,
   deleteChatPreset,
+  getBotNames,
+  addBotName,
+  deleteBotName,
+  getRandomBotName,
   getSystemSettings,
   updateSystemSetting,
   getAdminStats
