@@ -170,6 +170,11 @@ export default function App() {
     socket.emit('rps_choice', { choice });
   };
 
+  const handleRpsRematch = () => {
+    if (!socket) return;
+    socket.emit('rps_rematch');
+  };
+
   const handleUseRecon = (r, c) => {
     if (!socket) return;
     socket.emit('use_recon', { r, c });
@@ -333,6 +338,7 @@ export default function App() {
           <RpsMinigame
             rps={gameState.rps}
             onMakeChoice={handleRpsChoice}
+            onRpsRematch={handleRpsRematch}
             isBotGame={gameState.isBotGame}
             enemyName={gameState.enemy?.name}
           />

@@ -438,6 +438,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Rock Paper Scissors rematch on tie
+  socket.on('rps_rematch', () => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    room.resetRpsTie();
+    broadcastRoomState(room);
+  });
+
   // Reconnaissance plane special move
   socket.on('use_recon', ({ r, c }) => {
     if (!currentRoomId) return;

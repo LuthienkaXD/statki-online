@@ -10,16 +10,29 @@ import {
   generateRandomFleet,
   buildGridFromShips
 } from '../utils/rules';
-import { Shuffle, Trash2, RotateCw, CheckCircle2, ShieldAlert, Palette, Check, Layers } from 'lucide-react';
+import {
+  Shuffle,
+  Trash2,
+  RotateCw,
+  CheckCircle2,
+  ShieldAlert,
+  Palette,
+  Check,
+  Layers,
+  Move
+} from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
   const [placedShips, setPlacedShips] = useState([]);
-  const [selectedDockShip, setSelectedDockShip] = useState(null);
+  const [selectedDockShip, setSelectedDockShip] = useState(null); // Dock ship OR dragged ship
   const [isVertical, setIsVertical] = useState(false);
   const [hoverCoord, setHoverCoord] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [customColor, setCustomColor] = useState('#2563eb');
+
+  // Drag-and-drop state
+  const [draggedShip, setDraggedShip] = useState(null);
 
   const fleetStyle = getFleetStyle(customColor);
   const letters = getLetters(boardSize);
@@ -57,6 +70,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
     const newFleet = generateRandomFleet(boardSize);
     setPlacedShips(newFleet);
     setSelectedDockShip(null);
+    setDraggedShip(null);
     setErrorMessage('');
   };
 
@@ -64,6 +78,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
     sounds.playClick();
     setPlacedShips([]);
     setSelectedDockShip(null);
+    setDraggedShip(null);
     setErrorMessage('');
   };
 
@@ -81,7 +96,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
     };
 
     const handleWheel = (e) => {
-      if (hoverCoord || selectedDockShip) {
+      if (hoverCoord || selectedDockShip || draggedShip) {
         e.preventDefault();
         setIsVertical(prev => !prev);
         sounds.playClick();
@@ -94,30 +109,43 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [hoverCoord, selectedDockShip]);
+  }, [hoverCoord, selectedDockShip, draggedShip]);
 
+  // Active moving ship (either dragged from board or selected from dock)
+  const activeShipSpec = draggedShip || selectedDockShip;
+
+  // Click on board cell
   const handleCellClick = (r, c) => {
     sounds.playClick();
 
-    // If clicked on existing ship -> remove to dock
     const clickedShipId = grid[r][c];
-    if (clickedShipId) {
-      setPlacedShips(prev => prev.filter(s => s.id !== clickedShipId));
-      setErrorMessage('');
-      return;
-    }
 
-    if (selectedDockShip) {
-      if (selectedDockShip.remaining <= 0) return;
+    // If we have an active ship to place
+    if (activeShipSpec) {
+      const valid = canPlaceShip(
+        grid,
+        r,
+        c,
+        activeShipSpec.size,
+        isVertical,
+        activeShipSpec.shape || 'line',
+        boardSize,
+        draggedShip ? draggedShip.id : null
+      );
 
-      const valid = canPlaceShip(grid, r, c, selectedDockShip.size, isVertical, selectedDockShip.shape || 'line', boardSize);
       if (!valid) {
         setErrorMessage('Nieprawidłowe położenie! Statki nie mogą się ze sobą stykać ani bokami, ani rogami.');
         return;
       }
 
-      const shipId = `ship_${selectedDockShip.size}_${selectedDockShip.shape || 'line'}_${Date.now()}`;
-      const relCells = getShipRelativeCells(selectedDockShip.size, isVertical, selectedDockShip.shape || 'line');
+      // If moving existing placed ship -> remove old position first
+      let updatedShips = placedShips;
+      if (draggedShip) {
+        updatedShips = placedShips.filter(s => s.id !== draggedShip.id);
+      }
+
+      const shipId = draggedShip ? draggedShip.id : `ship_${activeShipSpec.size}_${Date.now()}`;
+      const relCells = getShipRelativeCells(activeShipSpec.size, isVertical, activeShipSpec.shape || 'line');
       const cells = relCells.map(rc => ({
         r: r + rc.dr,
         c: c + rc.dc,
@@ -126,31 +154,81 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
 
       const newShip = {
         id: shipId,
-        name: selectedDockShip.name,
-        size: selectedDockShip.size,
-        shape: selectedDockShip.shape || 'line',
+        name: activeShipSpec.name,
+        size: activeShipSpec.size,
+        shape: activeShipSpec.shape || 'line',
         isVertical,
         cells,
         sunk: false
       };
 
-      setPlacedShips(prev => [...prev, newShip]);
+      setPlacedShips([...updatedShips, newShip]);
+      setDraggedShip(null);
       setErrorMessage('');
 
-      if (selectedDockShip.remaining - 1 <= 0) {
+      // Auto select next dock ship if coming from dock
+      if (!draggedShip && selectedDockShip.remaining - 1 <= 0) {
         const nextAvail = dockFleet.find(d => (d.size !== selectedDockShip.size || d.shape !== selectedDockShip.shape) && d.remaining > 0);
         setSelectedDockShip(nextAvail || null);
+      }
+      return;
+    }
+
+    // If clicked on existing ship with NO active ship -> pickup/drag this ship!
+    if (clickedShipId) {
+      const existing = placedShips.find(s => s.id === clickedShipId);
+      if (existing) {
+        setDraggedShip(existing);
+        setIsVertical(existing.isVertical);
+        setSelectedDockShip(null);
+        setErrorMessage('Podniosłeś statek! Kliknij nowe pole lub obróć kółkiem myszy.');
       }
     }
   };
 
-  const isHoverValid = hoverCoord && selectedDockShip
-    ? canPlaceShip(grid, hoverCoord.r, hoverCoord.c, selectedDockShip.size, isVertical, selectedDockShip.shape || 'line', boardSize)
+  // Drag and drop HTML5 handlers for board ships
+  const handleDragStartFromBoard = (e, ship) => {
+    e.dataTransfer.setData('text/plain', ship.id);
+    setDraggedShip(ship);
+    setIsVertical(ship.isVertical);
+    setSelectedDockShip(null);
+  };
+
+  const handleDragStartFromDock = (e, ship) => {
+    e.dataTransfer.setData('text/plain', `dock_${ship.size}_${ship.shape || 'line'}`);
+    setSelectedDockShip(ship);
+    setDraggedShip(null);
+  };
+
+  const handleDragOver = (e, r, c) => {
+    e.preventDefault();
+    if (!hoverCoord || hoverCoord.r !== r || hoverCoord.c !== c) {
+      setHoverCoord({ r, c });
+    }
+  };
+
+  const handleDrop = (e, r, c) => {
+    e.preventDefault();
+    handleCellClick(r, c);
+  };
+
+  // Check validity for hover preview
+  const isHoverValid = hoverCoord && activeShipSpec
+    ? canPlaceShip(
+        grid,
+        hoverCoord.r,
+        hoverCoord.c,
+        activeShipSpec.size,
+        isVertical,
+        activeShipSpec.shape || 'line',
+        boardSize,
+        draggedShip ? draggedShip.id : null
+      )
     : false;
 
   const hoverCells = [];
-  if (hoverCoord && selectedDockShip) {
-    const relCells = getShipRelativeCells(selectedDockShip.size, isVertical, selectedDockShip.shape || 'line');
+  if (hoverCoord && activeShipSpec) {
+    const relCells = getShipRelativeCells(activeShipSpec.size, isVertical, activeShipSpec.shape || 'line');
     relCells.forEach(rc => {
       hoverCells.push({
         r: hoverCoord.r + rc.dr,
@@ -182,7 +260,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
           Rozmieść Swoją Flotę
         </h2>
         <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl mx-auto">
-          Zachowaj <strong>minimum 1 kratkę odstępu</strong> między statkami. Obracaj statki <strong>kółkiem myszy (scroll)</strong> lub klawiszem <strong>R</strong>!
+          Przeciągaj statki myszką lub kliknij, aby je przenieść w inne miejsce. Obracaj statki <strong>kółkiem myszy (scroll)</strong> lub klawiszem <strong>R</strong>!
         </p>
 
         {/* Fleet Color Wheel & Preset Picker */}
@@ -228,6 +306,14 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
         </div>
       </div>
 
+      {/* Floating alert/instruction when moving a ship */}
+      {draggedShip && (
+        <div className="mb-3 px-4 py-1.5 bg-indigo-50 border border-indigo-300 rounded-xl text-indigo-900 text-xs flex items-center space-x-2 font-medium shadow-xs animate-pulse">
+          <Move className="w-4 h-4 text-indigo-600" />
+          <span>Przenosisz: <strong>{draggedShip.name}</strong>. Kliknij na nowe pole planszy lub obróć kółkiem myszy.</span>
+        </div>
+      )}
+
       {errorMessage && (
         <div className="mb-4 px-4 py-2 bg-rose-50 border border-rose-300 rounded-lg text-rose-700 text-xs flex items-center space-x-2 animate-bounce shadow-xs">
           <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
@@ -247,17 +333,14 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
                 gridTemplateColumns: `24px repeat(${boardSize}, minmax(22px, 32px))`
               }}
             >
-              {/* Top left corner */}
               <div className="w-6 h-6"></div>
 
-              {/* Column Letters */}
               {letters.map(l => (
                 <div key={l} className="h-6 flex items-center justify-center text-slate-700 font-mono text-xs font-bold select-none">
                   {l}
                 </div>
               ))}
 
-              {/* Rows */}
               {numbers.map((num, rIdx) => (
                 <React.Fragment key={num}>
                   <div className="w-6 h-7 sm:h-8 flex items-center justify-end pr-1 text-slate-700 font-mono text-xs font-bold select-none">
@@ -266,14 +349,18 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
 
                   {letters.map((_, cIdx) => {
                     const shipId = grid[rIdx][cIdx];
+                    const shipObj = placedShips.find(s => s.id === shipId);
                     const isOccupied = Boolean(shipId);
+                    const isBeingMoved = draggedShip && draggedShip.id === shipId;
                     const isPreview = hoverCells.some(h => h.r === rIdx && h.c === cIdx);
 
                     let cellClass = 'bg-slate-50 border-slate-300 hover:bg-slate-100 hover:border-slate-400';
                     let inlineStyle = {};
 
                     if (isOccupied) {
-                      cellClass = 'border-transparent text-white shadow-2xs';
+                      cellClass = isBeingMoved
+                        ? 'border-dashed border-indigo-400 opacity-40'
+                        : 'border-transparent text-white shadow-2xs cursor-grab active:cursor-grabbing';
                       inlineStyle = fleetStyle.style;
                     } else if (isPreview) {
                       cellClass = isHoverValid
@@ -284,11 +371,16 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
                     return (
                       <button
                         key={`${rIdx}-${cIdx}`}
+                        draggable={isOccupied}
+                        onDragStart={(e) => shipObj && handleDragStartFromBoard(e, shipObj)}
+                        onDragOver={(e) => handleDragOver(e, rIdx, cIdx)}
+                        onDrop={(e) => handleDrop(e, rIdx, cIdx)}
                         onClick={() => handleCellClick(rIdx, cIdx)}
                         onMouseEnter={() => setHoverCoord({ r: rIdx, c: cIdx })}
                         onMouseLeave={() => setHoverCoord(null)}
                         style={inlineStyle}
                         className={`h-7 sm:h-8 rounded-md border flex items-center justify-center transition-all duration-150 cursor-pointer ${cellClass}`}
+                        title={isOccupied ? 'Kliknij lub przeciągnij, aby przenieść w inne miejsce' : ''}
                       >
                         {isOccupied && (
                           <div className="w-2 h-2 rounded-full bg-white/80"></div>
@@ -343,7 +435,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
           </h3>
 
           <p className="text-xs text-slate-500 mb-3">
-            Kliknij statek z doku, a następnie kliknij pole na planszy.
+            Przeciągaj statki myszką z doków lub planszy. Kliknięcie postawionego statku pozwala przenieść go w inne miejsce.
           </p>
 
           <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
@@ -354,10 +446,13 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
               return (
                 <div
                   key={`${ship.id}_${ship.size}_${ship.shape || 'line'}`}
+                  draggable={!isDone}
+                  onDragStart={(e) => !isDone && handleDragStartFromDock(e, ship)}
                   onClick={() => {
                     if (!isDone) {
                       sounds.playClick();
                       setSelectedDockShip(ship);
+                      setDraggedShip(null);
                       setErrorMessage('');
                     }
                   }}
@@ -370,8 +465,6 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10 }) {
                   }`}
                 >
                   <div className="flex items-center space-x-3">
-                    
-                    {/* Visual Ship representation */}
                     {ship.shape === 'L' ? (
                       <div className="grid grid-cols-3 gap-0.5 p-1 bg-amber-50 rounded border border-amber-300">
                         <div style={!isDone ? fleetStyle.style : {}} className="w-3.5 h-3.5 rounded-xs border"></div>

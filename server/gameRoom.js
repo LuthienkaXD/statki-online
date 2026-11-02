@@ -165,16 +165,14 @@ class GameRoom {
       const c2 = this.rps.p2Choice;
 
       if (c1 === c2) {
-        this.rps.resultText = `Remis! Oboje wybrali ${c1 === 'rock' ? 'Kamień' : c1 === 'paper' ? 'Papier' : 'Nożyce'}. Gramy dogrywkę!`;
+        const choiceName = c1 === 'rock' ? 'Kamień' : c1 === 'paper' ? 'Papier' : 'Nożyce';
+        this.rps.isTie = true;
+        this.rps.resultText = `Remis! Oboje wybrali ${choiceName}. Kliknij "Zagraj dogrywkę", aby spróbować ponownie!`;
         this.addChatMessage(null, this.rps.resultText);
-        setTimeout(() => {
-          if (this.status === 'rps') {
-            this.rps.p1Choice = null;
-            this.rps.p2Choice = this.isBotGame ? ['rock', 'paper', 'scissors'][Math.floor(Math.random() * 3)] : null;
-          }
-        }, 1200);
         return { tie: true, resultText: this.rps.resultText };
       }
+
+      this.rps.isTie = false;
 
       const p1Wins =
         (c1 === 'rock' && c2 === 'scissors') ||
@@ -199,6 +197,16 @@ class GameRoom {
     }
 
     return { waiting: true };
+  }
+
+  // Reset RPS choices for manual tie-breaker / retry
+  resetRpsTie() {
+    if (this.status !== 'rps') return;
+    this.rps.p1Choice = null;
+    this.rps.p2Choice = this.isBotGame ? ['rock', 'paper', 'scissors'][Math.floor(Math.random() * 3)] : null;
+    this.rps.isTie = false;
+    this.rps.resultText = null;
+    this.addChatMessage(null, 'Rozpoczynamy dogrywkę Kamień-Papier-Nożyce!');
   }
 
   // Feature 1: Reconnaissance plane
@@ -404,6 +412,7 @@ class GameRoom {
         myChoice: forPlayerKey === 'p1' ? this.rps.p1Choice : this.rps.p2Choice,
         enemyChosen: Boolean(forPlayerKey === 'p1' ? this.rps.p2Choice : this.rps.p1Choice),
         winner: this.rps.winner,
+        isTie: Boolean(this.rps.isTie),
         resultText: this.rps.resultText
       },
       me: me ? {

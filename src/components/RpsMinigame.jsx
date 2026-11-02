@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { sounds } from '../utils/audio';
-import { Sparkles, Trophy, CheckCircle2, Shuffle } from 'lucide-react';
+import { Sparkles, Trophy, CheckCircle2, RotateCcw } from 'lucide-react';
 
 const RPS_OPTIONS = [
   {
@@ -29,7 +29,7 @@ const RPS_OPTIONS = [
   }
 ];
 
-export default function RpsMinigame({ rps, onMakeChoice, isBotGame, enemyName }) {
+export default function RpsMinigame({ rps, onMakeChoice, onRpsRematch, isBotGame, enemyName }) {
   const [selected, setSelected] = useState(null);
 
   const handlePick = (choiceId) => {
@@ -38,10 +38,17 @@ export default function RpsMinigame({ rps, onMakeChoice, isBotGame, enemyName })
     onMakeChoice(choiceId);
   };
 
+  const handleTieRematch = () => {
+    sounds.playClick();
+    setSelected(null);
+    if (onRpsRematch) onRpsRematch();
+  };
+
   const myChoice = rps?.myChoice;
   const enemyChosen = rps?.enemyChosen;
   const resultText = rps?.resultText;
   const winner = rps?.winner;
+  const isTie = Boolean(rps?.isTie);
 
   return (
     <div className="w-full max-w-lg mx-auto p-6 sm:p-8 bg-white border-2 border-slate-200 rounded-3xl shadow-xl text-center animate-in fade-in zoom-in-95 duration-200">
@@ -66,13 +73,13 @@ export default function RpsMinigame({ rps, onMakeChoice, isBotGame, enemyName })
           return (
             <button
               key={opt.id}
-              disabled={Boolean(myChoice)}
+              disabled={Boolean(myChoice && !isTie)}
               onClick={() => handlePick(opt.id)}
               className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center transition-all cursor-pointer relative group ${
                 isChosenByMe
                   ? 'border-indigo-600 bg-indigo-50/70 ring-4 ring-indigo-500/20 scale-105 shadow-md'
                   : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:border-indigo-300 hover:scale-102 hover:shadow-sm'
-              } ${myChoice ? 'cursor-default' : ''}`}
+              } ${myChoice && !isTie ? 'cursor-default' : ''}`}
             >
               <div className="text-4xl sm:text-5xl mb-2 transition-transform group-hover:scale-115">
                 {opt.icon}
@@ -93,10 +100,10 @@ export default function RpsMinigame({ rps, onMakeChoice, isBotGame, enemyName })
         })}
       </div>
 
-      {/* Status Bar */}
-      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm">
+      {/* Status Bar & Tie Rematch Button */}
+      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm space-y-3">
         {resultText ? (
-          <div className="font-bold text-indigo-950 font-chakra text-sm sm:text-base animate-pulse">
+          <div className="font-bold text-indigo-950 font-chakra text-sm sm:text-base">
             {resultText}
           </div>
         ) : myChoice ? (
@@ -109,6 +116,19 @@ export default function RpsMinigame({ rps, onMakeChoice, isBotGame, enemyName })
         ) : (
           <div className="text-slate-500 font-medium">
             Wybierz jeden z symboli powyżej!
+          </div>
+        )}
+
+        {/* Tie Rematch Button */}
+        {isTie && (
+          <div>
+            <button
+              onClick={handleTieRematch}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-chakra font-bold text-xs sm:text-sm rounded-xl transition shadow-md shadow-indigo-500/20 flex items-center justify-center space-x-2 mx-auto cursor-pointer animate-bounce"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Zagraj dogrywkę (Wybierz ponownie)</span>
+            </button>
           </div>
         )}
       </div>
