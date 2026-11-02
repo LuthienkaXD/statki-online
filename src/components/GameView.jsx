@@ -419,17 +419,18 @@ export default function GameView({
 
       </div>
 
-      {/* Smutny Kapitan Pixel Art z Białą Flagą (widoczny dla obu graczy po zakończeniu bitwy) */}
-      {isGameOver && showSurrenderAnim && (
-        <SurrenderAnimation
-          loserName={loserName}
-          isWinner={isWinner}
-          onClose={() => setShowSurrenderAnim(false)}
-        />
-      )}
-
       {/* Main Game Arena */}
-      <div className="w-full flex flex-col xl:flex-row gap-5 items-start justify-center">
+      <div className="w-full flex flex-col xl:flex-row gap-5 items-start justify-center relative">
+        
+        {/* Smutny Kapitan Pixel Art z Białą Flagą (widoczny dla obu graczy po zakończeniu bitwy na wysokości 5, 6 wiersza plansz) */}
+        {isGameOver && showSurrenderAnim && (
+          <SurrenderAnimation
+            loserName={loserName}
+            isWinner={isWinner}
+            boardZoom={boardZoom}
+            onClose={() => setShowSurrenderAnim(false)}
+          />
+        )}
         
         {/* Left: Your Fleet */}
         <div className="w-full xl:w-auto flex-1 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
