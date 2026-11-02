@@ -444,6 +444,33 @@ export default function AdminModal({ isOpen, onClose, token }) {
                 </button>
               </div>
 
+              {/* Max mines in game */}
+              <div className="p-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
+                <div>
+                  <div className="font-semibold text-slate-900 text-xs sm:text-sm">
+                    Liczba Min Morskich na gracza
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    Maksymalna ilość min generowana na gracza przy włączonym modyfikatorze min.
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {[1, 2, 3, 4, 5].map(cnt => (
+                    <button
+                      key={cnt}
+                      onClick={() => handleSaveSetting('max_mines', cnt)}
+                      className={`w-8 h-8 rounded-xl text-xs font-bold font-mono transition cursor-pointer ${
+                        String(systemSettings.max_mines || '2') === String(cnt)
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {cnt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Maintenance mode toggle */}
               <div className="p-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
                 <div>

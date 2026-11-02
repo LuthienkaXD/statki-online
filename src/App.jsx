@@ -8,6 +8,7 @@ import AuthModal from './components/AuthModal';
 import LeaderboardModal from './components/LeaderboardModal';
 import RulesModal from './components/RulesModal';
 import AdminModal from './components/AdminModal';
+import RpsMinigame from './components/RpsMinigame';
 import { sounds } from './utils/audio';
 import { Users, Copy, Check, Loader2, AlertCircle, Bell } from 'lucide-react';
 
@@ -142,10 +143,15 @@ export default function App() {
     }
   }, [socket, currentRoomId, gameState, user]);
 
-  const handleCreateRoom = (isBot = false) => {
+  const handleCreateRoom = (isBot = false, config = {}) => {
     if (!socket) return;
     setErrorNotice('');
-    socket.emit('create_room', { isBot, user });
+    socket.emit('create_room', {
+      isBot,
+      user,
+      boardSize: config.boardSize || 10,
+      options: config.options || {}
+    });
   };
 
   const handleJoinRoom = (roomId) => {
@@ -157,6 +163,16 @@ export default function App() {
   const handleSetShips = (ships, color = 'blue') => {
     if (!socket) return;
     socket.emit('set_ships', { ships, color });
+  };
+
+  const handleRpsChoice = (choice) => {
+    if (!socket) return;
+    socket.emit('rps_choice', { choice });
+  };
+
+  const handleUseRecon = (r, c) => {
+    if (!socket) return;
+    socket.emit('use_recon', { r, c });
   };
 
   const handleFireShot = (r, c) => {
@@ -299,8 +315,17 @@ export default function App() {
             <PlacementBoard
               onReady={handleSetShips}
               isBotGame={gameState.isBotGame}
+              boardSize={gameState.boardSize || 10}
             />
           )
+        ) : gameState.status === 'rps' ? (
+          // Rock Paper Scissors phase
+          <RpsMinigame
+            rps={gameState.rps}
+            onMakeChoice={handleRpsChoice}
+            isBotGame={gameState.isBotGame}
+            enemyName={gameState.enemy?.name}
+          />
         ) : (
           // Battle phase (playing or finished)
           <GameView
@@ -309,6 +334,7 @@ export default function App() {
             onSendChat={handleSendChat}
             onRematch={handleRematch}
             onLeaveRoom={handleLeaveRoom}
+            onUseRecon={handleUseRecon}
           />
         )}
       </main>

@@ -1,6 +1,17 @@
-export const BOARD_SIZE = 10;
-export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-export const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+// Dynamic Board Rules & Ship Placement Engine
+// Sizes supported: 10x10, 13x13, 15x15
+
+export const BOARD_SIZES = [10, 13, 15];
+
+export const ALL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'];
+
+export function getLetters(size = 10) {
+  return ALL_LETTERS.slice(0, size);
+}
+
+export function getNumbers(size = 10) {
+  return Array.from({ length: size }, (_, i) => i + 1);
+}
 
 export const FLEET_COLORS = [
   { id: 'blue', name: 'Granat', hex: '#2563eb' },
@@ -50,30 +61,77 @@ export function getFleetColor(colorId) {
   return FLEET_COLORS.find(c => c.id === colorId) || FLEET_COLORS[0];
 }
 
-export const REQUIRED_FLEET = [
-  { id: 'b4_1', name: 'Czteromasztowiec', size: 4, count: 1 },
-  { id: 'c3_1', name: 'Trójmasztowiec', size: 3, count: 2 },
-  { id: 'd2_1', name: 'Dwumasztowiec', size: 2, count: 3 },
-  { id: 's1_1', name: 'Jednomasztowiec', size: 1, count: 4 },
-];
-
-export function isValidCoord(r, c) {
-  return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+// Fleets definitions per board size
+export function getRequiredFleet(boardSize = 10) {
+  if (boardSize === 15) {
+    return [
+      { id: 'l_ship', name: 'Pancernik L (Kształt L 3x2)', size: 4, count: 1, shape: 'L' },
+      { id: 'b5', name: 'Lotniskowiec', size: 5, count: 1 },
+      { id: 'b4', name: 'Czteromasztowiec', size: 4, count: 2 },
+      { id: 'c3', name: 'Trójmasztowiec', size: 3, count: 3 },
+      { id: 'd2', name: 'Dwumasztowiec', size: 2, count: 4 },
+      { id: 's1', name: 'Jednomasztowiec', size: 1, count: 4 },
+    ];
+  }
+  if (boardSize === 13) {
+    return [
+      { id: 'b5', name: 'Lotniskowiec', size: 5, count: 1 },
+      { id: 'b4', name: 'Czteromasztowiec', size: 4, count: 2 },
+      { id: 'c3', name: 'Trójmasztowiec', size: 3, count: 3 },
+      { id: 'd2', name: 'Dwumasztowiec', size: 2, count: 3 },
+      { id: 's1', name: 'Jednomasztowiec', size: 1, count: 4 },
+    ];
+  }
+  // Default 10x10 standard classic
+  return [
+    { id: 'b4_1', name: 'Czteromasztowiec', size: 4, count: 1 },
+    { id: 'c3_1', name: 'Trójmasztowiec', size: 3, count: 2 },
+    { id: 'd2_1', name: 'Dwumasztowiec', size: 2, count: 3 },
+    { id: 's1_1', name: 'Jednomasztowiec', size: 1, count: 4 },
+  ];
 }
 
-export function canPlaceShip(grid, r, c, size, isVertical, excludeShipId = null) {
+export function isValidCoord(r, c, boardSize = 10) {
+  return r >= 0 && r < boardSize && c >= 0 && c < boardSize;
+}
+
+// Get cells occupied by ship given origin (r, c), size, orientation and shape
+export function getShipRelativeCells(size, isVertical, shape = 'line') {
+  if (shape === 'L') {
+    // L-shape in 3x2 bounding box: 3 cells in one arm, 1 extra perpendicular cell
+    // Horizontal L: [0,0], [0,1], [0,2], [1,0]
+    // Vertical L:   [0,0], [1,0], [2,0], [0,1]
+    if (isVertical) {
+      return [{ dr: 0, dc: 0 }, { dr: 1, dc: 0 }, { dr: 2, dc: 0 }, { dr: 2, dc: 1 }];
+    }
+    return [{ dr: 0, dc: 0 }, { dr: 0, dc: 1 }, { dr: 0, dc: 2 }, { dr: 1, dc: 0 }];
+  }
+  // Standard straight line
+  const cells = [];
   for (let i = 0; i < size; i++) {
-    const currR = isVertical ? r + i : r;
-    const currC = isVertical ? c : c + i;
+    cells.push({
+      dr: isVertical ? i : 0,
+      dc: isVertical ? 0 : i
+    });
+  }
+  return cells;
+}
 
-    if (!isValidCoord(currR, currC)) return false;
+export function canPlaceShip(grid, r, c, size, isVertical, shape = 'line', boardSize = 10, excludeShipId = null) {
+  const relCells = getShipRelativeCells(size, isVertical, shape);
 
-    // Check 8-neighborhood for any other ship
+  for (const rc of relCells) {
+    const currR = r + rc.dr;
+    const currC = c + rc.dc;
+
+    if (!isValidCoord(currR, currC, boardSize)) return false;
+
+    // Check 8-neighborhood
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         const checkR = currR + dr;
         const checkC = currC + dc;
-        if (isValidCoord(checkR, checkC)) {
+        if (isValidCoord(checkR, checkC, boardSize)) {
           const occupant = grid[checkR][checkC];
           if (occupant && occupant !== excludeShipId) {
             return false;
@@ -85,40 +143,38 @@ export function canPlaceShip(grid, r, c, size, isVertical, excludeShipId = null)
   return true;
 }
 
-export function generateRandomFleet() {
-  const grid = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));
+export function generateRandomFleet(boardSize = 10) {
+  const fleetDef = getRequiredFleet(boardSize);
+  const grid = Array.from({ length: boardSize }, () => Array(boardSize).fill(null));
   const ships = [];
   let counter = 1;
 
-  for (const def of REQUIRED_FLEET) {
+  for (const def of fleetDef) {
     for (let c = 0; c < def.count; c++) {
       let placed = false;
       let attempts = 0;
 
-      while (!placed && attempts < 1000) {
+      while (!placed && attempts < 2500) {
         attempts++;
         const isVertical = Math.random() < 0.5;
-        const maxR = isVertical ? BOARD_SIZE - def.size : BOARD_SIZE - 1;
-        const maxC = isVertical ? BOARD_SIZE - 1 : BOARD_SIZE - def.size;
+        const r = Math.floor(Math.random() * boardSize);
+        const col = Math.floor(Math.random() * boardSize);
 
-        const r = Math.floor(Math.random() * (maxR + 1));
-        const col = Math.floor(Math.random() * (maxC + 1));
-
-        if (canPlaceShip(grid, r, col, def.size, isVertical)) {
-          const shipId = `ship_${def.size}_${counter++}`;
-          const cells = [];
-
-          for (let i = 0; i < def.size; i++) {
-            const cellR = isVertical ? r + i : r;
-            const cellC = isVertical ? col : col + i;
+        if (canPlaceShip(grid, r, col, def.size, isVertical, def.shape || 'line', boardSize)) {
+          const shipId = `ship_${def.size}_${def.shape || 'line'}_${counter++}`;
+          const relCells = getShipRelativeCells(def.size, isVertical, def.shape || 'line');
+          const cells = relCells.map(rc => {
+            const cellR = r + rc.dr;
+            const cellC = col + rc.dc;
             grid[cellR][cellC] = shipId;
-            cells.push({ r: cellR, c: cellC, hit: false });
-          }
+            return { r: cellR, c: cellC, hit: false };
+          });
 
           ships.push({
             id: shipId,
             name: def.name,
             size: def.size,
+            shape: def.shape || 'line',
             isVertical,
             cells,
             sunk: false
@@ -129,7 +185,7 @@ export function generateRandomFleet() {
       }
 
       if (!placed) {
-        return generateRandomFleet();
+        return generateRandomFleet(boardSize);
       }
     }
   }
@@ -137,14 +193,20 @@ export function generateRandomFleet() {
   return ships;
 }
 
-export function buildGridFromShips(ships) {
-  const grid = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));
+export function buildGridFromShips(ships, boardSize = 10) {
+  const grid = Array.from({ length: boardSize }, () => Array(boardSize).fill(null));
   ships.forEach(ship => {
     ship.cells.forEach(cell => {
-      if (isValidCoord(cell.r, cell.c)) {
+      if (isValidCoord(cell.r, cell.c, boardSize)) {
         grid[cell.r][cell.c] = ship.id;
       }
     });
   });
   return grid;
 }
+
+// Backward compatibility constants
+export const BOARD_SIZE = 10;
+export const LETTERS = getLetters(10);
+export const NUMBERS = getNumbers(10);
+export const REQUIRED_FLEET = getRequiredFleet(10);

@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LETTERS, NUMBERS, getFleetStyle } from '../utils/rules';
-import { Crosshair, Shield, Flame, Send, RotateCcw, Trophy, Skull, Check, Copy } from 'lucide-react';
+import { getLetters, getNumbers, getFleetStyle } from '../utils/rules';
+import {
+  Crosshair,
+  Shield,
+  Flame,
+  Send,
+  RotateCcw,
+  Trophy,
+  Skull,
+  Check,
+  Copy,
+  Bomb,
+  Plane,
+  Radio
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
 
@@ -9,15 +22,28 @@ export default function GameView({
   onFireShot,
   onSendChat,
   onRematch,
-  onLeaveRoom
+  onLeaveRoom,
+  onUseRecon
 }) {
   const [chatInput, setChatInput] = useState('');
   const [chatPresets, setChatPresets] = useState([]);
   const [freeTextAllowed, setFreeTextAllowed] = useState(true);
+  const [reconActive, setReconActive] = useState(false);
   const [copied, setCopied] = useState(false);
   const chatBottomRef = useRef(null);
 
-  // Load chat dictionary presets from server
+  const { me, enemy, turn, status, winner, isBotGame, roomId, chat, boardSize = 10, options = {} } = gameState;
+  const isMyTurn = status === 'playing' && turn === me?.key;
+  const isGameOver = status === 'finished';
+  const isWinner = winner === me?.key;
+
+  const letters = getLetters(boardSize);
+  const numbers = getNumbers(boardSize);
+
+  const myFleetStyle = getFleetStyle(me?.color);
+  const enemyFleetStyle = getFleetStyle(enemy?.color || '#334155');
+
+  // Load chat dictionary presets
   useEffect(() => {
     fetch('/api/chat/presets')
       .then(res => res.json())
@@ -31,14 +57,6 @@ export default function GameView({
         setChatPresets(['Cześć!', 'Dobre trafienie!', 'Gramy rewanż?', 'Pudło! 😜']);
       });
   }, []);
-
-  const { me, enemy, turn, status, winner, isBotGame, roomId, chat } = gameState;
-  const isMyTurn = status === 'playing' && turn === me?.key;
-  const isGameOver = status === 'finished';
-  const isWinner = winner === me?.key;
-
-  const myFleetStyle = getFleetStyle(me?.color);
-  const enemyFleetStyle = getFleetStyle(enemy?.color || '#334155');
 
   // Auto scroll chat
   useEffect(() => {
@@ -63,7 +81,16 @@ export default function GameView({
 
   const handleShoot = (r, c) => {
     if (!isMyTurn || isGameOver) return;
-    if (enemy?.shotsGrid[r][c] !== null) return;
+
+    if (reconActive) {
+      // Use reconnaissance plane radar
+      setReconActive(false);
+      sounds.playClick();
+      if (onUseRecon) onUseRecon(r, c);
+      return;
+    }
+
+    if (enemy?.shotsGrid[r][c] !== null && enemy?.shotsGrid[r][c] !== undefined) return;
 
     sounds.playShoot();
     onFireShot(r, c);
@@ -77,108 +104,40 @@ export default function GameView({
   };
 
   const copyRoomLink = () => {
-    const link = `${window.location.origin}/?room=${roomId}`;
-    navigator.clipboard.writeText(link);
+    const url = `${window.location.origin}/?room=${roomId}`;
+    navigator.clipboard.writeText(url);
     setCopied(true);
     sounds.playClick();
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Render cell on enemy board
-  const renderEnemyCell = (r, c) => {
-    const cellState = enemy?.shotsGrid[r][c]; // null, 'miss', 'hit'
-    const isClickable = isMyTurn && !isGameOver && cellState === null;
-
-    // Check if cell belongs to a known sunk ship
-    const sunkShip = enemy?.sunkShips?.find(ship =>
-      ship.cells.some(sc => sc.r === r && sc.c === c)
-    );
-
-    // After game ends: check if cell belongs to an unhit surviving ship
-    const unhitShip = isGameOver && enemy?.allShips?.find(ship =>
-      !ship.sunk && ship.cells.some(sc => sc.r === r && sc.c === c && !sc.hit)
-    );
-
-    let cellClass = 'bg-slate-50 border-slate-200 cursor-not-allowed';
-    let inlineStyle = {};
-
-    if (cellState === 'hit') {
-      if (sunkShip) {
-        cellClass = 'border-transparent text-white shadow-xs';
-        inlineStyle = enemyFleetStyle.style;
-      } else {
-        cellClass = 'bg-rose-500 border-rose-600 animate-hit-pop shadow-xs text-white';
-      }
-    } else if (cellState === 'miss') {
-      cellClass = 'bg-slate-100 border-slate-200';
-    } else if (unhitShip) {
-      // Semi-transparent ghost ship for unhit enemy ships after game finishes
-      cellClass = 'border-2 border-dashed border-slate-400 shadow-2xs';
-      inlineStyle = {
-        ...enemyFleetStyle.style,
-        opacity: 0.45
-      };
-    } else if (isMyTurn && !isGameOver) {
-      cellClass = 'bg-slate-50 border-slate-300 hover:bg-red-50 hover:border-red-400 cursor-crosshair';
-    }
-
-    return (
-      <button
-        key={`${r}-${c}`}
-        disabled={!isClickable}
-        onClick={() => handleShoot(r, c)}
-        style={inlineStyle}
-        title={unhitShip ? 'Ocalały statek przeciwnika (nieodkryty)' : undefined}
-        className={`w-7 h-7 sm:w-8 sm:h-8 rounded border flex items-center justify-center transition-all duration-150 relative ${cellClass}`}
-      >
-        {cellState === 'hit' && (
-          <Flame className="w-4 h-4 text-amber-200 drop-shadow fill-amber-300" />
-        )}
-
-        {/* Red X on empty fields (misses and auto-marked water) */}
-        {cellState === 'miss' && (
-          <span className="text-red-600 font-extrabold text-xs select-none drop-shadow-2xs">✕</span>
-        )}
-
-        {/* Ghost indicator on surviving unhit ships */}
-        {unhitShip && cellState === null && (
-          <div className="w-2 h-2 rounded-full bg-white/90 shadow-xs"></div>
-        )}
-      </button>
-    );
-  };
-
-  // Render cell on own board
+  // Render cell on Player's Own Board
   const renderMyCell = (r, c) => {
-    const shot = me?.shotsGrid[r][c]; // null, 'miss', 'hit'
+    const shot = me?.shotsGrid[r][c];
+    const myShip = me?.ships?.find(s => s.cells.some(cell => cell.r === r && cell.c === c));
+    const isMine = me?.mines?.some(m => m.r === r && m.c === c);
 
-    const myShip = me?.ships?.find(ship =>
-      ship.cells.some(sc => sc.r === r && sc.c === c)
-    );
-
-    let bgStyle = 'bg-slate-50 border-slate-200';
+    let bgStyle = 'bg-slate-50 border-slate-300';
     let inlineStyle = {};
 
     if (myShip) {
-      if (myShip.sunk) {
-        bgStyle = 'bg-rose-950 border-rose-900 text-white';
-      } else {
-        bgStyle = 'border-transparent text-white shadow-2xs';
-        inlineStyle = myFleetStyle.style;
-      }
+      inlineStyle = myFleetStyle.style;
     }
 
     return (
       <div
         key={`${r}-${c}`}
         style={inlineStyle}
-        className={`w-7 h-7 sm:w-8 sm:h-8 rounded border flex items-center justify-center relative ${bgStyle}`}
+        className={`h-6 sm:h-7 rounded border flex items-center justify-center relative ${bgStyle}`}
       >
         {shot === 'hit' ? (
           <Flame className="w-4 h-4 text-rose-300 animate-pulse fill-rose-500" />
+        ) : shot === 'mine' ? (
+          <Bomb className="w-4 h-4 text-amber-400 fill-amber-500 animate-bounce" />
         ) : shot === 'miss' ? (
-          /* Red X on empty squares on own board as well */
-          <span className="text-red-600 font-extrabold text-xs select-none drop-shadow-2xs">✕</span>
+          <span className="text-red-600 font-extrabold text-xs select-none">✕</span>
+        ) : isMine ? (
+          <Bomb className="w-3.5 h-3.5 text-rose-600" title="Twoja mina morska" />
         ) : myShip ? (
           <div className="w-1.5 h-1.5 rounded-full bg-white/80"></div>
         ) : null}
@@ -186,11 +145,60 @@ export default function GameView({
     );
   };
 
+  // Render cell on Enemy Board
+  const renderEnemyCell = (r, c) => {
+    const shot = enemy?.shotsGrid[r][c];
+    const isSunkCell = enemy?.sunkShips?.some(s => s.cells.some(cell => cell.r === r && cell.c === c));
+    const isUnhitShipOnGameOver = isGameOver && enemy?.allShips?.some(s => !s.sunk && s.cells.some(cell => cell.r === r && cell.c === c && !cell.hit));
+    const isEnemyMineOnGameOver = isGameOver && enemy?.allMines?.some(m => m.r === r && m.c === c);
+
+    let cellClass = 'bg-slate-50 border-slate-300 hover:bg-slate-200/80';
+    let inlineStyle = {};
+
+    if (shot === 'hit') {
+      cellClass = isSunkCell
+        ? 'border-rose-700 shadow-sm'
+        : 'border-orange-500 shadow-2xs';
+      inlineStyle = enemyFleetStyle.style;
+    } else if (shot === 'mine') {
+      cellClass = 'bg-amber-100 border-amber-500';
+    } else if (isUnhitShipOnGameOver) {
+      inlineStyle = {
+        ...enemyFleetStyle.style,
+        opacity: 0.55
+      };
+    }
+
+    return (
+      <button
+        key={`${r}-${c}`}
+        onClick={() => handleShoot(r, c)}
+        disabled={!isMyTurn || isGameOver || (shot !== null && shot !== undefined)}
+        style={inlineStyle}
+        className={`h-6 sm:h-7 rounded border flex items-center justify-center transition-all ${
+          isMyTurn && !isGameOver && (shot === null || shot === undefined)
+            ? 'cursor-pointer hover:border-blue-500 hover:scale-105 hover:ring-2 hover:ring-blue-400'
+            : ''
+        } ${cellClass}`}
+      >
+        {shot === 'hit' ? (
+          <Flame className="w-3.5 h-3.5 text-rose-200 fill-rose-500 animate-pulse" />
+        ) : shot === 'mine' ? (
+          <Bomb className="w-3.5 h-3.5 text-amber-700 animate-bounce" />
+        ) : shot === 'miss' ? (
+          <span className="text-red-600 font-extrabold text-xs select-none">✕</span>
+        ) : isEnemyMineOnGameOver ? (
+          <Bomb className="w-3 h-3 text-rose-500 opacity-60" />
+        ) : null}
+      </button>
+    );
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto p-2 sm:p-4 flex flex-col items-center">
       
-      {/* Top Banner: Turn status / Game Over Header & Controls */}
-      <div className={`w-full max-w-4xl mb-4 flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 sm:p-4 rounded-2xl shadow-sm border transition-all ${
+      {/* Top Banner: Status */}
+      <div className={`w-full max-w-5xl mb-4 flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 rounded-2xl shadow-sm border transition-all ${
         isGameOver
           ? isWinner
             ? 'bg-gradient-to-r from-amber-50 to-emerald-50 border-amber-300'
@@ -198,24 +206,19 @@ export default function GameView({
           : 'bg-white border-slate-200'
       }`}>
         
-        {/* Status icon & message */}
-        <div className="flex items-center space-x-3.5 text-left">
+        <div className="flex items-center space-x-3 text-left">
           {isGameOver ? (
             isWinner ? (
-              <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 shrink-0 shadow-xs">
-                <Trophy className="w-7 h-7" />
+              <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 shrink-0">
+                <Trophy className="w-6 h-6" />
               </div>
             ) : (
-              <div className="w-12 h-12 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-600 shrink-0 shadow-xs">
-                <Skull className="w-7 h-7" />
+              <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-600 shrink-0">
+                <Skull className="w-6 h-6" />
               </div>
             )
           ) : (
-            <div className={`w-3.5 h-3.5 rounded-full ${
-              isMyTurn
-                ? 'bg-emerald-500 animate-ping'
-                : 'bg-rose-500'
-            }`} />
+            <div className={`w-3.5 h-3.5 rounded-full ${isMyTurn ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`} />
           )}
 
           <div>
@@ -226,7 +229,7 @@ export default function GameView({
                 </span>
               ) : isMyTurn ? (
                 <span className="text-emerald-600 flex items-center space-x-1.5">
-                  <Crosshair className="w-5 h-5 text-emerald-600 animate-spin" />
+                  <Crosshair className="w-4 h-4 animate-spin text-emerald-600" />
                   <span>TWÓJ RUCH! Wybierz pole na planszy wroga</span>
                 </span>
               ) : (
@@ -236,193 +239,149 @@ export default function GameView({
               )}
             </div>
 
-            <p className="text-xs text-slate-600 mt-0.5">
-              {isGameOver
-                ? 'Obie plansze pozostają w pełni widoczne. Nieodkryte statki wyświetlają się w trybie półprześwitującym.'
-                : isMyTurn
-                ? 'Trafienie gwarantuje kolejny strzał! Puste pola oznaczają się same na czerwony ✕.'
-                : 'Oczekiwanie na ruch przeciwnika...'}
+            <p className="text-xs text-slate-500 mt-0.5">
+              Plansza {boardSize}×{boardSize} • {options.mines ? '💣 Miny włączone (trafienie = utrata tury)' : ''}
             </p>
           </div>
         </div>
 
-        {/* Action buttons: Rematch & Leave during Game Over, or Share Link during battle */}
-        {isGameOver ? (
-          <div className="flex items-center space-x-2 shrink-0">
+        {/* Action Controls: Recon plane or Rematch */}
+        <div className="flex items-center space-x-2 shrink-0">
+          {isMyTurn && options.reconPlane && !me?.reconUsed && (
             <button
-              onClick={() => { sounds.playClick(); onRematch(); }}
-              className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold font-chakra text-xs sm:text-sm shadow-xs transition"
+              onClick={() => { sounds.playClick(); setReconActive(!reconActive); }}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                reconActive
+                  ? 'bg-amber-500 text-white animate-pulse ring-2 ring-amber-400'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
             >
-              <RotateCcw className="w-4 h-4" />
-              <span>Zagraj Rewanż</span>
+              <Plane className="w-4 h-4" />
+              <span>{reconActive ? 'Kliknij na cel radaru 3×3' : 'Zwiad lotniczy (Radar)'}</span>
             </button>
-            <button
-              onClick={() => { sounds.playClick(); onLeaveRoom(); }}
-              className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium transition border border-slate-300 shadow-2xs"
-            >
-              Menu
-            </button>
-          </div>
-        ) : (
-          !isBotGame && (
-            <button
-              onClick={copyRoomLink}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 border border-slate-200 text-xs font-semibold transition"
-            >
-              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Skopiowano link do gry!' : 'Skopiuj link do pokoju'}</span>
-            </button>
-          )
-        )}
+          )}
+
+          {isGameOver ? (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => { sounds.playClick(); onRematch(); }}
+                className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold font-chakra text-xs shadow-xs transition cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Rewanż</span>
+              </button>
+              <button
+                onClick={() => { sounds.playClick(); onLeaveRoom(); }}
+                className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium border border-slate-300 cursor-pointer"
+              >
+                Menu
+              </button>
+            </div>
+          ) : (
+            !isBotGame && (
+              <button
+                onClick={copyRoomLink}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 border border-slate-200 text-xs font-semibold transition cursor-pointer"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Skopiowano!' : 'Kopiuj link'}</span>
+              </button>
+            )
+          )}
+        </div>
 
       </div>
 
-      {/* Main Game Arena: 2 Fully Visible Boards + Chat */}
-      <div className="w-full grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      {/* Main Game Arena */}
+      <div className="w-full grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
         
-        {/* Left: Your Fleet (Always 100% visible) */}
-        <div className="xl:col-span-4 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <div className="w-full flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2">
+        {/* Left: Your Fleet */}
+        <div className="xl:col-span-4 flex flex-col items-center bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
+          <div className="w-full flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-1.5">
               <Shield className="w-4 h-4 text-blue-600" />
-              <span className="font-chakra font-bold text-sm text-slate-900">Twoja Flota ({me?.name})</span>
+              <span className="font-chakra font-bold text-xs sm:text-sm text-slate-900">Twoja Flota</span>
             </div>
             <div className="flex items-center space-x-2">
               <div
-                className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs"
+                className="w-3 h-3 rounded-full border border-slate-300"
                 style={{ backgroundColor: myFleetStyle.hex }}
-                title="Twój kolor floty"
               />
-              <span className="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-semibold">
-                Trafień wroga: {me?.stats?.hits || 0}
+              <span className="text-[11px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                Trafienia wroga: {me?.stats?.hits || 0}
               </span>
             </div>
           </div>
 
-          {/* 10x10 Grid with Guaranteed Column Alignment */}
-          <div className="inline-block p-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl">
-            <div className="grid grid-cols-[24px_repeat(10,28px)] sm:grid-cols-[28px_repeat(10,32px)] gap-1 items-center">
-              
-              {/* Corner */}
-              <div className="w-6 sm:w-7 h-5 sm:h-6"></div>
-
-              {/* 10 Headers A-J */}
-              {LETTERS.map(l => (
-                <div
-                  key={l}
-                  className="w-7 sm:w-8 h-5 sm:h-6 flex items-center justify-center font-mono font-bold text-slate-700 text-xs sm:text-sm select-none"
-                >
+          <div className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl max-w-full overflow-x-auto">
+            <div
+              className="grid gap-0.5 items-center"
+              style={{
+                gridTemplateColumns: `20px repeat(${boardSize}, minmax(20px, 28px))`
+              }}
+            >
+              <div className="w-5 h-5"></div>
+              {letters.map(l => (
+                <div key={l} className="h-5 flex items-center justify-center font-mono font-bold text-slate-700 text-xs select-none">
                   {l}
                 </div>
               ))}
-
-              {/* Rows 1-10 */}
-              {NUMBERS.map((n, r) => (
+              {numbers.map((n, r) => (
                 <React.Fragment key={n}>
-                  <div className="w-6 sm:w-7 h-7 sm:h-8 flex items-center justify-end pr-1.5 font-mono font-bold text-slate-700 text-xs sm:text-sm select-none">
+                  <div className="w-5 h-6 flex items-center justify-end pr-1 font-mono font-bold text-slate-700 text-xs select-none">
                     {n}
                   </div>
-                  {LETTERS.map((_, c) => renderMyCell(r, c))}
+                  {letters.map((_, c) => renderMyCell(r, c))}
                 </React.Fragment>
               ))}
-
             </div>
-          </div>
-
-          <div className="mt-3 text-[11px] text-slate-500 text-center">
-            Płomienie na Twoich okrętach to trafienia, a <strong className="text-red-600 font-bold">czerwony ✕</strong> to pudła wroga.
           </div>
         </div>
 
-        {/* Center: Enemy Board (Always 100% visible, reveals unhit ships semi-transparently on game over!) */}
-        <div className="xl:col-span-5 flex flex-col items-center bg-white border-2 border-slate-300 rounded-2xl p-4 shadow-md relative">
-          
-          <div className="w-full flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2">
+        {/* Center: Enemy Board */}
+        <div className="xl:col-span-5 flex flex-col items-center bg-white border-2 border-slate-300 rounded-2xl p-3.5 shadow-md relative">
+          <div className="w-full flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-1.5">
               <Crosshair className="w-4 h-4 text-rose-600" />
-              <span className="font-chakra font-bold text-sm text-slate-900">Flota Przeciwnika ({enemy?.name})</span>
+              <span className="font-chakra font-bold text-xs sm:text-sm text-slate-900">Flota Przeciwnika ({enemy?.name})</span>
             </div>
-            <div className="flex items-center space-x-2 text-xs font-mono">
-              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
-                Zatopione: {enemy?.sunkShips?.length || 0}/10
-              </span>
-            </div>
+            <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+              Zatopione: {enemy?.sunkShips?.length || 0}
+            </span>
           </div>
 
-          {/* 10x10 Enemy Grid with Guaranteed Column Alignment */}
-          <div className="inline-block p-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl shadow-inner">
-            <div className="grid grid-cols-[24px_repeat(10,28px)] sm:grid-cols-[28px_repeat(10,32px)] gap-1 items-center">
-              
-              {/* Corner */}
-              <div className="w-6 sm:w-7 h-5 sm:h-6"></div>
-
-              {/* 10 Headers A-J */}
-              {LETTERS.map(l => (
-                <div
-                  key={l}
-                  className="w-7 sm:w-8 h-5 sm:h-6 flex items-center justify-center font-mono font-bold text-slate-700 text-xs sm:text-sm select-none"
-                >
+          <div className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl shadow-inner max-w-full overflow-x-auto">
+            <div
+              className="grid gap-0.5 items-center"
+              style={{
+                gridTemplateColumns: `20px repeat(${boardSize}, minmax(20px, 28px))`
+              }}
+            >
+              <div className="w-5 h-5"></div>
+              {letters.map(l => (
+                <div key={l} className="h-5 flex items-center justify-center font-mono font-bold text-slate-700 text-xs select-none">
                   {l}
                 </div>
               ))}
-
-              {/* Rows 1-10 */}
-              {NUMBERS.map((n, r) => (
+              {numbers.map((n, r) => (
                 <React.Fragment key={n}>
-                  <div className="w-6 sm:w-7 h-7 sm:h-8 flex items-center justify-end pr-1.5 font-mono font-bold text-slate-700 text-xs sm:text-sm select-none">
+                  <div className="w-5 h-6 flex items-center justify-end pr-1 font-mono font-bold text-slate-700 text-xs select-none">
                     {n}
                   </div>
-                  {LETTERS.map((_, c) => renderEnemyCell(r, c))}
+                  {letters.map((_, c) => renderEnemyCell(r, c))}
                 </React.Fragment>
               ))}
-
             </div>
           </div>
-
-          {/* Sunk ships checklist preview */}
-          <div className="w-full mt-4 pt-3 border-t border-slate-200 flex items-center justify-around text-[11px] text-slate-600">
-            <div className="flex items-center space-x-1">
-              <span>4-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 4).length}/1
-              </span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>3-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 3).length}/2
-              </span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>2-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 2).length}/3
-              </span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>1-maszt:</span>
-              <span className="font-mono font-bold text-slate-900">
-                {(enemy?.sunkShips || []).filter(s => s.size === 1).length}/4
-              </span>
-            </div>
-          </div>
-
-          {isGameOver && (
-            <div className="mt-3 text-[11px] text-slate-600 text-center font-medium">
-              💡 Półprześwitujące pola z przerywaną ramką oznaczają ocalałe statki, których nie trafiono.
-            </div>
-          )}
-
         </div>
 
-        {/* Right: In-Game Chat */}
-        <div className="xl:col-span-3 flex flex-col h-[460px] bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <h3 className="font-chakra font-bold text-sm text-slate-900 mb-2 flex items-center justify-between">
+        {/* Right: In-Game Chat with Dictionary */}
+        <div className="xl:col-span-3 flex flex-col h-[480px] bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
+          <h3 className="font-chakra font-bold text-xs text-slate-900 mb-2 flex items-center justify-between">
             <span>Czat Bitewny</span>
             <span className="text-[10px] text-slate-500 font-mono">Tura {gameState.turnsCount || 1}</span>
           </h3>
 
-          {/* Dynamic dictionary presets */}
           <div className="flex flex-wrap gap-1 mb-2 max-h-24 overflow-y-auto">
             {chatPresets.map((preset) => (
               <button
@@ -435,7 +394,6 @@ export default function GameView({
             ))}
           </div>
 
-          {/* Messages list */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
             {chat && chat.length > 0 ? (
               chat.map((msg, i) => (
@@ -445,7 +403,7 @@ export default function GameView({
                     msg.senderKey === me?.key
                       ? 'bg-blue-50 border border-blue-200 text-blue-900 ml-3'
                       : !msg.senderKey
-                      ? 'bg-slate-100 border border-slate-200 text-slate-700 text-center text-[11px]'
+                      ? 'bg-slate-100 border border-slate-200 text-slate-700 text-center text-[10px]'
                       : 'bg-slate-50 border border-slate-200 text-slate-800 mr-3'
                   }`}
                 >
@@ -458,36 +416,34 @@ export default function GameView({
               ))
             ) : (
               <div className="text-center text-slate-400 py-12 text-xs">
-                Brak wiadomości. Pozdrów rywala ze słownika!
+                Brak wiadomości. Pozdrów rywala!
               </div>
             )}
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Chat input form (or notice if free text is disabled by admin) */}
           {freeTextAllowed ? (
-            <form onSubmit={handleChatSubmit} className="mt-3 flex items-center space-x-2">
+            <form onSubmit={handleChatSubmit} className="mt-2.5 flex items-center space-x-1.5">
               <input
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Napisz wiadomość..."
-                className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                 maxLength={120}
               />
               <button
                 type="submit"
-                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-xs"
+                className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-xs cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
             </form>
           ) : (
-            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-center text-[11px] text-slate-500 font-medium">
-              🔒 Czat tekstowy jest wyłączony. Użyj gotowych wiadomości ze słownika powyżej.
+            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-center text-[10px] text-slate-500 font-medium">
+              🔒 Czat tekstowy zablokowany przez Admina. Użyj słownika powyżej.
             </div>
           )}
-
         </div>
 
       </div>

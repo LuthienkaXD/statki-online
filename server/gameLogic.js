@@ -1,36 +1,72 @@
-// Standard Polish/Russian naval battle rules (as on battleship-game.org)
-// Fleet: 1x4, 2x3, 3x2, 4x1. Total 10 ships, 20 cells.
-// Ships must NOT touch each other, even diagonally.
+// Server-side Game Logic with dynamic Board Sizes (10x10, 13x13, 15x15) and Mines/Modifiers
 
-const BOARD_SIZE = 10;
-const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+const ALL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'];
 
-const REQUIRED_FLEET = [
-  { type: 'czteromasztowiec', size: 4, count: 1 },
-  { type: 'trojmasztowiec', size: 3, count: 2 },
-  { type: 'dwumasztowiec', size: 2, count: 3 },
-  { type: 'jednomasztowiec', size: 1, count: 4 },
-];
-
-function isValidCoord(r, c) {
-  return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+function getLetters(size = 10) {
+  return ALL_LETTERS.slice(0, size);
 }
 
-// Check if a ship placement is valid against currently placed ships
-// No overlap and no adjacent contact in 8 directions (including diagonals)
-function canPlaceShip(grid, r, c, size, isVertical) {
+function isValidCoord(r, c, boardSize = 10) {
+  return r >= 0 && r < boardSize && c >= 0 && c < boardSize;
+}
+
+function getRequiredFleet(boardSize = 10) {
+  if (boardSize === 15) {
+    return [
+      { id: 'l_ship', name: 'Pancernik L (3x2)', size: 4, count: 1, shape: 'L' },
+      { id: 'b5', name: 'Lotniskowiec', size: 5, count: 1 },
+      { id: 'b4', name: 'Czteromasztowiec', size: 4, count: 2 },
+      { id: 'c3', name: 'Trójmasztowiec', size: 3, count: 3 },
+      { id: 'd2', name: 'Dwumasztowiec', size: 2, count: 4 },
+      { id: 's1', name: 'Jednomasztowiec', size: 1, count: 4 },
+    ];
+  }
+  if (boardSize === 13) {
+    return [
+      { id: 'b5', name: 'Lotniskowiec', size: 5, count: 1 },
+      { id: 'b4', name: 'Czteromasztowiec', size: 4, count: 2 },
+      { id: 'c3', name: 'Trójmasztowiec', size: 3, count: 3 },
+      { id: 'd2', name: 'Dwumasztowiec', size: 2, count: 3 },
+      { id: 's1', name: 'Jednomasztowiec', size: 1, count: 4 },
+    ];
+  }
+  return [
+    { id: 'b4', name: 'Czteromasztowiec', size: 4, count: 1 },
+    { id: 'c3', name: 'Trójmasztowiec', size: 3, count: 2 },
+    { id: 'd2', name: 'Dwumasztowiec', size: 2, count: 3 },
+    { id: 's1', name: 'Jednomasztowiec', size: 1, count: 4 },
+  ];
+}
+
+function getShipRelativeCells(size, isVertical, shape = 'line') {
+  if (shape === 'L') {
+    if (isVertical) {
+      return [{ dr: 0, dc: 0 }, { dr: 1, dc: 0 }, { dr: 2, dc: 0 }, { dr: 2, dc: 1 }];
+    }
+    return [{ dr: 0, dc: 0 }, { dr: 0, dc: 1 }, { dr: 0, dc: 2 }, { dr: 1, dc: 0 }];
+  }
+  const cells = [];
   for (let i = 0; i < size; i++) {
-    const currR = isVertical ? r + i : r;
-    const currC = isVertical ? c : c + i;
+    cells.push({
+      dr: isVertical ? i : 0,
+      dc: isVertical ? 0 : i
+    });
+  }
+  return cells;
+}
 
-    if (!isValidCoord(currR, currC)) return false;
+function canPlaceShip(grid, r, c, size, isVertical, shape = 'line', boardSize = 10) {
+  const relCells = getShipRelativeCells(size, isVertical, shape);
+  for (const rc of relCells) {
+    const currR = r + rc.dr;
+    const currC = c + rc.dc;
+    if (!isValidCoord(currR, currC, boardSize)) return false;
 
-    // Check all 8 surrounding cells + the cell itself
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         const checkR = currR + dr;
         const checkC = currC + dc;
-        if (isValidCoord(checkR, checkC)) {
+        if (isValidCoord(checkR, checkC, boardSize)) {
           if (grid[checkR][checkC] !== 0) {
             return false;
           }
@@ -41,39 +77,38 @@ function canPlaceShip(grid, r, c, size, isVertical) {
   return true;
 }
 
-// Generate valid random placement of all 10 ships
-function generateRandomFleet() {
-  const grid = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
+function generateRandomFleet(boardSize = 10) {
+  const fleetDef = getRequiredFleet(boardSize);
+  const grid = Array.from({ length: boardSize }, () => Array(boardSize).fill(0));
   const ships = [];
   let shipIdCounter = 1;
 
-  for (const shipDef of REQUIRED_FLEET) {
+  for (const shipDef of fleetDef) {
     for (let count = 0; count < shipDef.count; count++) {
       let placed = false;
       let attempts = 0;
 
-      while (!placed && attempts < 1000) {
+      while (!placed && attempts < 2500) {
         attempts++;
         const isVertical = Math.random() < 0.5;
-        const maxR = isVertical ? BOARD_SIZE - shipDef.size : BOARD_SIZE - 1;
-        const maxC = isVertical ? BOARD_SIZE - 1 : BOARD_SIZE - shipDef.size;
+        const r = Math.floor(Math.random() * boardSize);
+        const c = Math.floor(Math.random() * boardSize);
 
-        const r = Math.floor(Math.random() * (maxR + 1));
-        const c = Math.floor(Math.random() * (maxC + 1));
-
-        if (canPlaceShip(grid, r, c, shipDef.size, isVertical)) {
-          const shipCells = [];
-          for (let i = 0; i < shipDef.size; i++) {
-            const cellR = isVertical ? r + i : r;
-            const cellC = isVertical ? c : c + i;
+        if (canPlaceShip(grid, r, c, shipDef.size, isVertical, shipDef.shape || 'line', boardSize)) {
+          const relCells = getShipRelativeCells(shipDef.size, isVertical, shipDef.shape || 'line');
+          const shipCells = relCells.map(rc => {
+            const cellR = r + rc.dr;
+            const cellC = c + rc.dc;
             grid[cellR][cellC] = shipIdCounter;
-            shipCells.push({ r: cellR, c: cellC, hit: false });
-          }
+            return { r: cellR, c: cellC, hit: false };
+          });
 
           ships.push({
             id: `ship_${shipIdCounter}`,
-            name: shipDef.type,
+            name: shipDef.name,
             size: shipDef.size,
+            shape: shipDef.shape || 'line',
+            isVertical,
             cells: shipCells,
             sunk: false
           });
@@ -84,8 +119,7 @@ function generateRandomFleet() {
       }
 
       if (!placed) {
-        // If deadlock reached, restart generation
-        return generateRandomFleet();
+        return generateRandomFleet(boardSize);
       }
     }
   }
@@ -93,60 +127,30 @@ function generateRandomFleet() {
   return ships;
 }
 
-// Validate a user-provided fleet
-function validateFleet(ships) {
-  if (!Array.isArray(ships) || ships.length !== 10) {
-    return { valid: false, reason: 'Flota musi zawierać dokładnie 10 statków.' };
+function validateFleet(ships, boardSize = 10) {
+  if (!Array.isArray(ships)) {
+    return { valid: false, reason: 'Nieprawidłowa flota.' };
   }
 
-  // Count sizes
-  const counts = { 4: 0, 3: 0, 2: 0, 1: 0 };
-  const grid = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
-
+  const grid = Array.from({ length: boardSize }, () => Array(boardSize).fill(0));
   for (let sIdx = 0; sIdx < ships.length; sIdx++) {
     const ship = ships[sIdx];
-    if (!ship.cells || ship.cells.length < 1 || ship.cells.length > 4) {
-      return { valid: false, reason: `Nieprawidłowy rozmiar statku.` };
-    }
-    counts[ship.cells.length] = (counts[ship.cells.length] || 0) + 1;
-
-    // Check cells shape: must be horizontal or vertical contiguous line
     const cells = ship.cells;
+    if (!cells || cells.length === 0) return { valid: false, reason: 'Statek bez komórek.' };
+
     for (const cell of cells) {
-      if (!isValidCoord(cell.r, cell.c)) {
-        return { valid: false, reason: `Statek poza planszą.` };
+      if (!isValidCoord(cell.r, cell.c, boardSize)) {
+        return { valid: false, reason: 'Statek poza planszą.' };
       }
     }
 
-    // Check linearity
-    if (cells.length > 1) {
-      const allSameRow = cells.every(c => c.r === cells[0].r);
-      const allSameCol = cells.every(c => c.c === cells[0].c);
-      if (!allSameRow && !allSameCol) {
-        return { valid: false, reason: 'Statki muszą być ustawione w linii prostej.' };
-      }
-      // Check contiguous
-      if (allSameRow) {
-        const cols = cells.map(c => c.c).sort((a, b) => a - b);
-        for (let i = 0; i < cols.length - 1; i++) {
-          if (cols[i + 1] !== cols[i] + 1) return { valid: false, reason: 'Maszty statku muszą być obok siebie.' };
-        }
-      } else {
-        const rows = cells.map(c => c.r).sort((a, b) => a - b);
-        for (let i = 0; i < rows.length - 1; i++) {
-          if (rows[i + 1] !== rows[i] + 1) return { valid: false, reason: 'Maszty statku muszą być obok siebie.' };
-        }
-      }
-    }
-
-    // Check distance rule against other already placed ships
     const shipId = sIdx + 1;
     for (const cell of cells) {
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
           const nr = cell.r + dr;
           const nc = cell.c + dc;
-          if (isValidCoord(nr, nc)) {
+          if (isValidCoord(nr, nc, boardSize)) {
             const occupant = grid[nr][nc];
             if (occupant !== 0 && occupant !== shipId) {
               return { valid: false, reason: 'Statki nie mogą się ze sobą stykać ani bokami, ani rogami.' };
@@ -158,32 +162,49 @@ function validateFleet(ships) {
     }
   }
 
-  if (counts[4] !== 1 || counts[3] !== 2 || counts[2] !== 3 || counts[1] !== 4) {
-    return {
-      valid: false,
-      reason: 'Wymagane: 1x 4-masztowiec, 2x 3-masztowce, 3x 2-masztowce, 4x 1-masztowce.'
-    };
-  }
-
   return { valid: true };
 }
 
-// Process a shot fired at a player's board
-// Returns:
-// {
-//   hit: boolean,
-//   sunk: shipObject | null,
-//   allSunk: boolean,
-//   autoMarked: [{ r, c }], // empty cells automatically marked as miss (x / dot)
-//   extraTurn: boolean
-// }
-function processShot(ships, shotsGrid, r, c) {
-  if (!isValidCoord(r, c)) {
+// Generates random mines in free water cells
+function generateRandomMines(ships, boardSize = 10, count = 2) {
+  const occupied = new Set();
+  ships.forEach(s => s.cells.forEach(c => occupied.add(`${c.r},${c.c}`)));
+
+  const mines = [];
+  let attempts = 0;
+  while (mines.length < count && attempts < 500) {
+    attempts++;
+    const r = Math.floor(Math.random() * boardSize);
+    const c = Math.floor(Math.random() * boardSize);
+    const key = `${r},${c}`;
+    if (!occupied.has(key) && !mines.some(m => m.r === r && m.c === c)) {
+      mines.push({ r, c });
+    }
+  }
+  return mines;
+}
+
+function processShot(ships, shotsGrid, r, c, boardSize = 10, mines = []) {
+  if (!isValidCoord(r, c, boardSize)) {
     return { error: 'Nieprawidłowe współrzędne' };
   }
 
   if (shotsGrid[r][c] !== null && shotsGrid[r][c] !== undefined) {
     return { error: 'W to pole już oddano strzał' };
+  }
+
+  // Check if hit a mine
+  const hitMine = mines && mines.find(m => m.r === r && m.c === c);
+  if (hitMine) {
+    shotsGrid[r][c] = 'mine';
+    return {
+      hit: false,
+      isMine: true,
+      sunk: null,
+      allSunk: false,
+      autoMarked: [],
+      extraTurn: false
+    };
   }
 
   // Find if any ship occupies (r, c)
@@ -204,10 +225,10 @@ function processShot(ships, shotsGrid, r, c) {
   const autoMarked = [];
 
   if (!hitShip) {
-    // MISS
     shotsGrid[r][c] = 'miss';
     return {
       hit: false,
+      isMine: false,
       sunk: null,
       allSunk: false,
       autoMarked: [],
@@ -215,23 +236,19 @@ function processShot(ships, shotsGrid, r, c) {
     };
   }
 
-  // HIT
   hitCell.hit = true;
   shotsGrid[r][c] = 'hit';
 
-  // Check if this ship is completely sunk
   const isSunk = hitShip.cells.every(c => c.hit);
   hitShip.sunk = isSunk;
 
   if (isSunk) {
-    // When ship is SUNK:
-    // Mark ALL empty neighbors around EVERY cell of this ship as 'miss' (auto-marked)
     for (const cell of hitShip.cells) {
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
           const nr = cell.r + dr;
           const nc = cell.c + dc;
-          if (isValidCoord(nr, nc)) {
+          if (isValidCoord(nr, nc, boardSize)) {
             if (shotsGrid[nr][nc] === null || shotsGrid[nr][nc] === undefined) {
               shotsGrid[nr][nc] = 'miss';
               autoMarked.push({ r: nr, c: nc });
@@ -241,10 +258,7 @@ function processShot(ships, shotsGrid, r, c) {
       }
     }
   } else {
-    // When ship is HIT but NOT yet sunk:
-    // As in battleship-game.org and classic rules:
-    // Because ships cannot touch diagonally, the 4 diagonal neighbors of this hit cell can NEVER have a ship!
-    // Auto-mark diagonal corners as 'miss'
+    // Auto-mark diagonal corners as miss
     const diagonals = [
       { dr: -1, dc: -1 },
       { dr: -1, dc: 1 },
@@ -254,7 +268,7 @@ function processShot(ships, shotsGrid, r, c) {
     for (const d of diagonals) {
       const nr = r + d.dr;
       const nc = c + d.dc;
-      if (isValidCoord(nr, nc)) {
+      if (isValidCoord(nr, nc, boardSize)) {
         if (shotsGrid[nr][nc] === null || shotsGrid[nr][nc] === undefined) {
           shotsGrid[nr][nc] = 'miss';
           autoMarked.push({ r: nr, c: nc });
@@ -263,25 +277,27 @@ function processShot(ships, shotsGrid, r, c) {
     }
   }
 
-  // Check if ALL ships are sunk
-  const allSunk = ships.every(s => s.sunk);
+  const allSunk = ships.every(s => s.cells.every(c => c.hit));
 
   return {
     hit: true,
+    isMine: false,
     sunk: isSunk ? hitShip : null,
     allSunk,
     autoMarked,
-    extraTurn: true // Player gets another turn on hit!
+    extraTurn: true
   };
 }
 
 module.exports = {
-  BOARD_SIZE,
-  LETTERS,
-  REQUIRED_FLEET,
+  BOARD_SIZE: 10,
+  getLetters,
   isValidCoord,
+  getRequiredFleet,
+  getShipRelativeCells,
   canPlaceShip,
   generateRandomFleet,
   validateFleet,
+  generateRandomMines,
   processShot
 };

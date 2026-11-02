@@ -339,13 +339,26 @@ io.on('connection', (socket) => {
   let playerKey = null;
 
   // Create Room
-  socket.on('create_room', ({ isBot = false, user = null }) => {
+  socket.on('create_room', async ({ isBot = false, user = null, boardSize = 10, options = {} }) => {
     let roomId = generateRoomId();
     while (activeRooms.has(roomId)) {
       roomId = generateRoomId();
     }
 
-    const room = new GameRoom(roomId, isBot);
+    // Fetch system max mines setting if enabled
+    let maxMines = 2;
+    try {
+      const settings = await getSystemSettings();
+      if (settings && settings.max_mines) maxMines = Number(settings.max_mines) || 2;
+    } catch (e) {}
+
+    const gameOptions = {
+      ...options,
+      boardSize: Number(boardSize) || 10,
+      minesCount: maxMines
+    };
+
+    const room = new GameRoom(roomId, isBot, gameOptions);
     playerKey = room.join(socket.id, user);
     currentRoomId = roomId;
     activeRooms.set(roomId, room);
@@ -390,6 +403,39 @@ io.on('connection', (socket) => {
       return;
     }
 
+    broadcastRoomState(room);
+  });
+
+  // Rock Paper Scissors choice
+  socket.on('rps_choice', ({ choice }) => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    room.handleRpsChoice(playerKey, choice);
+    broadcastRoomState(room);
+
+    // If transitioned to playing and bot goes first
+    if (room.isBotGame && room.status === 'playing' && room.turn === 'p2') {
+      setTimeout(() => {
+        if (room.status === 'playing' && room.turn === 'p2') {
+          const botResult = room.stepBot();
+          if (botResult && botResult.success) {
+            broadcastRoomState(room);
+          }
+        }
+      }, 1000);
+    }
+  });
+
+  // Reconnaissance plane special move
+  socket.on('use_recon', ({ r, c }) => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    const res = room.useReconPlane(playerKey, r, c);
+    socket.emit('recon_result', res);
     broadcastRoomState(room);
   });
 

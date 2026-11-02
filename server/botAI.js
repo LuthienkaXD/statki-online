@@ -1,9 +1,10 @@
-const { BOARD_SIZE, isValidCoord } = require('./gameLogic');
+const { isValidCoord } = require('./gameLogic');
 
 class BotAI {
-  constructor() {
-    this.hitsStack = []; // Cells hit that belong to unsunk ships
-    this.targetDirection = null; // 'H' or 'V' if known
+  constructor(boardSize = 10) {
+    this.boardSize = boardSize;
+    this.hitsStack = [];
+    this.targetDirection = null;
   }
 
   notifySunk() {
@@ -16,10 +17,11 @@ class BotAI {
   }
 
   getNextShot(enemyShotsGrid) {
-    // 1. If we have active hits on an unsunk ship -> Target Mode
+    const size = enemyShotsGrid.length;
+
+    // 1. Target mode
     if (this.hitsStack.length > 0) {
       if (this.hitsStack.length >= 2) {
-        // We have at least 2 hits on the same ship -> determine orientation
         const [first, ...rest] = this.hitsStack;
         const last = rest[rest.length - 1];
 
@@ -32,10 +34,10 @@ class BotAI {
           const minCol = cols[0];
           const maxCol = cols[cols.length - 1];
 
-          if (isValidCoord(row, minCol - 1) && enemyShotsGrid[row][minCol - 1] === null) {
+          if (isValidCoord(row, minCol - 1, size) && enemyShotsGrid[row][minCol - 1] === null) {
             candidates.push({ r: row, c: minCol - 1 });
           }
-          if (isValidCoord(row, maxCol + 1) && enemyShotsGrid[row][maxCol + 1] === null) {
+          if (isValidCoord(row, maxCol + 1, size) && enemyShotsGrid[row][maxCol + 1] === null) {
             candidates.push({ r: row, c: maxCol + 1 });
           }
         } else {
@@ -44,10 +46,10 @@ class BotAI {
           const minRow = rows[0];
           const maxRow = rows[rows.length - 1];
 
-          if (isValidCoord(minRow - 1, col) && enemyShotsGrid[minRow - 1][col] === null) {
+          if (isValidCoord(minRow - 1, col, size) && enemyShotsGrid[minRow - 1][col] === null) {
             candidates.push({ r: minRow - 1, c: col });
           }
-          if (isValidCoord(maxRow + 1, col) && enemyShotsGrid[maxRow + 1][col] === null) {
+          if (isValidCoord(maxRow + 1, col, size) && enemyShotsGrid[maxRow + 1][col] === null) {
             candidates.push({ r: maxRow + 1, c: col });
           }
         }
@@ -57,7 +59,6 @@ class BotAI {
         }
       }
 
-      // If only 1 hit or orientation blocked: try 4 orthogonal neighbors of each hit in stack
       for (const hit of this.hitsStack) {
         const neighbors = [
           { r: hit.r - 1, c: hit.c },
@@ -67,7 +68,7 @@ class BotAI {
         ];
 
         const validNeighbors = neighbors.filter(
-          n => isValidCoord(n.r, n.c) && enemyShotsGrid[n.r][n.c] === null
+          n => isValidCoord(n.r, n.c, size) && enemyShotsGrid[n.r][n.c] === null
         );
 
         if (validNeighbors.length > 0) {
@@ -76,12 +77,12 @@ class BotAI {
       }
     }
 
-    // 2. Hunt Mode: Checkerboard pattern (r + c) % 2 === 0
+    // 2. Hunt mode
     const parityCells = [];
     const otherCells = [];
 
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
         if (enemyShotsGrid[r][c] === null) {
           if ((r + c) % 2 === 0) {
             parityCells.push({ r, c });

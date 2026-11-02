@@ -1,17 +1,39 @@
-const { BOARD_SIZE, generateRandomFleet, validateFleet, processShot } = require('./gameLogic');
+const {
+  BOARD_SIZE,
+  generateRandomFleet,
+  validateFleet,
+  generateRandomMines,
+  processShot
+} = require('./gameLogic');
 const { BotAI } = require('./botAI');
 const { recordMatch } = require('./db');
 
 class GameRoom {
-  constructor(roomId, isBotGame = false) {
+  constructor(roomId, isBotGame = false, options = {}) {
     this.id = roomId;
     this.isBotGame = isBotGame;
     this.createdAt = Date.now();
-    this.status = 'waiting'; // 'waiting', 'placement', 'playing', 'finished'
-    this.turn = 'p1'; // 'p1' or 'p2'
+    this.boardSize = Number(options.boardSize) || 10;
+    this.options = {
+      mines: Boolean(options.mines),
+      minesCount: Number(options.minesCount) || 2,
+      reconPlane: Boolean(options.reconPlane),
+      armorShip: Boolean(options.armorShip)
+    };
+
+    this.status = 'waiting'; // 'waiting', 'placement', 'rps', 'playing', 'finished'
+    this.turn = 'p1';
     this.turnsCount = 0;
     this.winner = null;
     this.chat = [];
+
+    // Rock Paper Scissors minigame state
+    this.rps = {
+      p1Choice: null,
+      p2Choice: null,
+      winner: null,
+      history: []
+    };
 
     this.players = {
       p1: null,
@@ -19,7 +41,10 @@ class GameRoom {
     };
 
     if (isBotGame) {
-      this.botAI = new BotAI();
+      this.botAI = new BotAI(this.boardSize);
+      const botShips = generateRandomFleet(this.boardSize);
+      const botMines = this.options.mines ? generateRandomMines(botShips, this.boardSize, this.options.minesCount) : [];
+
       this.players.p2 = {
         key: 'p2',
         id: 'bot',
@@ -29,9 +54,11 @@ class GameRoom {
         isBot: true,
         ready: true,
         color: 'crimson',
-        ships: generateRandomFleet(),
-        shotsGrid: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null)),
-        stats: { hits: 0, shots: 0 }
+        ships: botShips,
+        mines: botMines,
+        shotsGrid: Array.from({ length: this.boardSize }, () => Array(this.boardSize).fill(null)),
+        stats: { hits: 0, shots: 0 },
+        reconUsed: false
       };
       this.status = 'placement';
     }
@@ -47,8 +74,10 @@ class GameRoom {
       ready: false,
       color: 'blue',
       ships: null,
-      shotsGrid: Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null)),
-      stats: { hits: 0, shots: 0 }
+      mines: [],
+      shotsGrid: Array.from({ length: this.boardSize }, () => Array(this.boardSize).fill(null)),
+      stats: { hits: 0, shots: 0 },
+      reconUsed: false
     };
 
     if (!this.players.p1) {
@@ -62,7 +91,6 @@ class GameRoom {
       this.status = 'placement';
       return 'p2';
     } else {
-      // Reconnection check
       if (this.players.p1.userId && user?.id === this.players.p1.userId) {
         this.players.p1.socketId = socketId;
         return 'p1';
@@ -71,7 +99,7 @@ class GameRoom {
         this.players.p2.socketId = socketId;
         return 'p2';
       }
-      return null; // Room full
+      return null;
     }
   }
 
@@ -82,7 +110,7 @@ class GameRoom {
   }
 
   setPlayerShips(playerKey, ships, color = 'blue') {
-    const validation = validateFleet(ships);
+    const validation = validateFleet(ships, this.boardSize);
     if (!validation.valid) {
       return validation;
     }
@@ -96,16 +124,110 @@ class GameRoom {
       cells: s.cells.map(c => ({ ...c, hit: false })),
       sunk: false
     }));
+
+    if (this.options.mines) {
+      player.mines = generateRandomMines(player.ships, this.boardSize, this.options.minesCount);
+    }
+
     player.ready = true;
 
-    // If both players ready -> start game!
+    // When both players set ships -> transition to Rock-Paper-Scissors minigame!
     if (this.players.p1?.ready && this.players.p2?.ready) {
-      this.status = 'playing';
-      // Random first turn
-      this.turn = Math.random() < 0.5 ? 'p1' : 'p2';
+      this.status = 'rps';
+      this.rps = {
+        p1Choice: null,
+        p2Choice: this.isBotGame ? ['rock', 'paper', 'scissors'][Math.floor(Math.random() * 3)] : null,
+        winner: null,
+        resultText: null
+      };
+      this.addChatMessage(null, 'Czas na pojedynek Kamień, Papier, Nożyce o prawo pierwszego wystrzału!');
     }
 
     return { valid: true };
+  }
+
+  // Rock Paper Scissors move
+  handleRpsChoice(playerKey, choice) {
+    if (this.status !== 'rps') return { error: 'Nie faza RPS' };
+    if (!['rock', 'paper', 'scissors'].includes(choice)) return { error: 'Zły wybór' };
+
+    if (playerKey === 'p1') this.rps.p1Choice = choice;
+    if (playerKey === 'p2') this.rps.p2Choice = choice;
+
+    // Check if both selected
+    if (this.rps.p1Choice && this.rps.p2Choice) {
+      const c1 = this.rps.p1Choice;
+      const c2 = this.rps.p2Choice;
+
+      const p1Name = this.players.p1.name;
+      const p2Name = this.players.p2.name;
+
+      if (c1 === c2) {
+        // Remis - reset and try again
+        this.rps.resultText = `Remis! Oboje wybrali ${c1 === 'rock' ? 'Kamień' : c1 === 'paper' ? 'Papier' : 'Nożyce'}. Gramy dogrywkę!`;
+        this.addChatMessage(null, this.rps.resultText);
+        setTimeout(() => {
+          if (this.status === 'rps') {
+            this.rps.p1Choice = null;
+            this.rps.p2Choice = this.isBotGame ? ['rock', 'paper', 'scissors'][Math.floor(Math.random() * 3)] : null;
+          }
+        }, 1200);
+        return { tie: true, resultText: this.rps.resultText };
+      }
+
+      const p1Wins =
+        (c1 === 'rock' && c2 === 'scissors') ||
+        (c1 === 'paper' && c2 === 'rock') ||
+        (c1 === 'scissors' && c2 === 'paper');
+
+      const winnerKey = p1Wins ? 'p1' : 'p2';
+      const winnerName = this.players[winnerKey].name;
+
+      this.rps.winner = winnerKey;
+      this.rps.resultText = `${winnerName} wygrywa Kamień-Papier-Nożyce i rozpoczyna bitwę!`;
+      this.turn = winnerKey;
+      this.addChatMessage(null, this.rps.resultText);
+
+      // Start main game after small delay
+      setTimeout(() => {
+        if (this.status === 'rps') {
+          this.status = 'playing';
+        }
+      }, 1800);
+
+      return { winnerKey, resultText: this.rps.resultText };
+    }
+
+    return { waiting: true };
+  }
+
+  // Reconnaissance plane skill: reveal 3x3 area without hitting
+  useReconPlane(playerKey, centerR, centerC) {
+    if (!this.options.reconPlane) return { error: 'Samolot zwiadowczy wyłączony' };
+    const player = this.players[playerKey];
+    if (player.reconUsed) return { error: 'Zwiad był już wykorzystany' };
+    if (this.turn !== playerKey) return { error: 'To nie Twoja tura' };
+
+    player.reconUsed = true;
+    const enemyKey = playerKey === 'p1' ? 'p2' : 'p1';
+    const enemy = this.players[enemyKey];
+
+    let foundShip = false;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const nr = centerR + dr;
+        const nc = centerC + dc;
+        if (enemy.ships.some(s => s.cells.some(c => c.r === nr && c.c === nc))) {
+          foundShip = true;
+        }
+      }
+    }
+
+    this.addChatMessage(
+      null,
+      `🛩️ ${player.name} wykonał zwiad lotniczy w sektorze wokół (${centerR + 1}, ${centerC + 1}) - ${foundShip ? 'WYKRYTO WROGI OKRĘT!' : 'Czyste wody.'}`
+    );
+    return { success: true, foundShip };
   }
 
   makeShot(playerKey, r, c) {
@@ -120,7 +242,7 @@ class GameRoom {
     const targetKey = playerKey === 'p1' ? 'p2' : 'p1';
     const target = this.players[targetKey];
 
-    const shotResult = processShot(target.ships, target.shotsGrid, r, c);
+    const shotResult = processShot(target.ships, target.shotsGrid, r, c, this.boardSize, target.mines);
     if (shotResult.error) {
       return shotResult;
     }
@@ -132,13 +254,15 @@ class GameRoom {
 
     this.turnsCount++;
 
-    if (shotResult.hit) {
-      // Player hit -> keep turn!
+    if (shotResult.isMine) {
+      // Hit a mine! Shooter loses their turn!
+      this.addChatMessage(null, `💥 BOOM! ${shooter.name} wpłynął na MINĘ MORSKĄ i natychmiast traci kolejkę!`);
+      this.turn = targetKey;
+    } else if (shotResult.hit) {
       if (shotResult.allSunk) {
         this.status = 'finished';
         this.winner = playerKey;
 
-        // Record match in SQLite DB
         recordMatch({
           player1: { userId: this.players.p1.userId, name: this.players.p1.name, hits: this.players.p1.stats.hits, shots: this.players.p1.stats.shots },
           player2: { userId: this.players.p2.userId, name: this.players.p2.name, hits: this.players.p2.stats.hits, shots: this.players.p2.stats.shots },
@@ -146,8 +270,9 @@ class GameRoom {
           turns: this.turnsCount
         });
       }
+      // Keep turn on hit
     } else {
-      // Miss -> switch turn!
+      // Miss -> switch turn
       this.turn = targetKey;
     }
 
@@ -161,7 +286,6 @@ class GameRoom {
     };
   }
 
-  // Handle Bot shot automatically if it's bot's turn
   stepBot() {
     if (!this.isBotGame || this.status !== 'playing' || this.turn !== 'p2') {
       return null;
@@ -172,7 +296,7 @@ class GameRoom {
     if (!shotCoord) return null;
 
     const result = this.makeShot('p2', shotCoord.r, shotCoord.c);
-    if (result.success) {
+    if (result.success && result.shotResult) {
       if (result.shotResult.hit) {
         this.botAI.notifyHit(shotCoord.r, shotCoord.c);
         if (result.shotResult.sunk) {
@@ -196,42 +320,49 @@ class GameRoom {
     return msg;
   }
 
-  // Sanitize state for client: never leak unrevealed enemy ships!
   getClientState(forPlayerKey) {
-    const p1 = this.players.p1;
-    const p2 = this.players.p2;
-
     const me = forPlayerKey ? this.players[forPlayerKey] : null;
     const enemyKey = forPlayerKey === 'p1' ? 'p2' : 'p1';
     const enemy = this.players[enemyKey];
 
     return {
       roomId: this.id,
+      boardSize: this.boardSize,
+      options: this.options,
       status: this.status,
       turn: this.turn,
       turnsCount: this.turnsCount,
       winner: this.winner,
       isBotGame: this.isBotGame,
+      rps: {
+        myChoice: forPlayerKey === 'p1' ? this.rps.p1Choice : this.rps.p2Choice,
+        enemyChosen: Boolean(forPlayerKey === 'p1' ? this.rps.p2Choice : this.rps.p1Choice),
+        winner: this.rps.winner,
+        resultText: this.rps.resultText
+      },
       me: me ? {
         key: me.key,
         name: me.name,
         ready: me.ready,
         color: me.color || 'blue',
-        ships: me.ships, // I see my own ships
-        shotsGrid: me.shotsGrid, // Shots enemy fired at me
-        stats: me.stats
+        ships: me.ships,
+        mines: me.mines, // show my own placed mines
+        shotsGrid: me.shotsGrid,
+        stats: me.stats,
+        reconUsed: me.reconUsed
       } : null,
       enemy: enemy ? {
         key: enemy.key,
         name: enemy.name,
         ready: enemy.ready,
         color: enemy.color || 'slate',
-        // Only reveal enemy sunk ships during game; when finished, reveal all ships so unhit ships can be shown
         sunkShips: (enemy.ships || []).filter(s => s.sunk),
         allShips: this.status === 'finished' ? enemy.ships : undefined,
-        shotsGrid: enemy.shotsGrid, // Shots I fired at enemy
+        allMines: this.status === 'finished' ? enemy.mines : undefined,
+        shotsGrid: enemy.shotsGrid,
         stats: { hits: enemy.stats.hits, shots: enemy.stats.shots },
-        totalShipsRemaining: (enemy.ships || []).filter(s => !s.sunk).length
+        totalShipsRemaining: (enemy.ships || []).filter(s => !s.sunk).length,
+        reconUsed: enemy.reconUsed
       } : null,
       chat: this.chat
     };
