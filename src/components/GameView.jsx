@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
+import SurrenderAnimation from './SurrenderAnimation';
 
 export default function GameView({
   gameState,
@@ -40,12 +41,14 @@ export default function GameView({
   const [sonarMode, setSonarMode] = useState(null); // null | 'row' | 'col'
   const [copied, setCopied] = useState(false);
   const [showRemainingShips, setShowRemainingShips] = useState(true);
+  const [showSurrenderAnim, setShowSurrenderAnim] = useState(true);
   const chatBottomRef = useRef(null);
 
   const { me, enemy, turn, status, winner, isBotGame, roomId, chat, boardSize = 10, options = {} } = gameState;
   const isMyTurn = status === 'playing' && turn === me?.key;
   const isGameOver = status === 'finished';
   const isWinner = winner === me?.key;
+  const loserName = winner === me?.key ? (enemy?.name || 'Przeciwnik') : (me?.name || 'Kapitan');
 
   const letters = getLetters(boardSize);
   const numbers = getNumbers(boardSize);
@@ -415,6 +418,15 @@ export default function GameView({
         </div>
 
       </div>
+
+      {/* Smutny Kapitan Pixel Art z Białą Flagą (widoczny dla obu graczy po zakończeniu bitwy) */}
+      {isGameOver && showSurrenderAnim && (
+        <SurrenderAnimation
+          loserName={loserName}
+          isWinner={isWinner}
+          onClose={() => setShowSurrenderAnim(false)}
+        />
+      )}
 
       {/* Main Game Arena */}
       <div className="w-full flex flex-col xl:flex-row gap-5 items-start justify-center">
