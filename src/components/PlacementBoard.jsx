@@ -40,6 +40,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
 
   // Drag-and-drop state
   const [draggedShip, setDraggedShip] = useState(null);
+  const [draggedMine, setDraggedMine] = useState(false); // dragging mine from dock or board
 
   const fleetStyle = getFleetStyle(customColor);
   const letters = getLetters(boardSize);
@@ -243,29 +244,74 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
     }
   };
 
-  // Drag and drop HTML5 handlers for board ships
+  // Drag and drop HTML5 handlers for board ships & mines
   const handleDragStartFromBoard = (e, ship) => {
     e.dataTransfer.setData('text/plain', ship.id);
     setDraggedShip(ship);
     setIsVertical(ship.isVertical);
     setSelectedDockShip(null);
+    setDraggedMine(false);
   };
 
   const handleDragStartFromDock = (e, ship) => {
     e.dataTransfer.setData('text/plain', `dock_${ship.size}_${ship.shape || 'line'}`);
     setSelectedDockShip(ship);
     setDraggedShip(null);
+    setDraggedMine(false);
   };
 
-  const handleDragOver = (e, r, c) => {
-    e.preventDefault();
-    if (!hoverCoord || hoverCoord.r !== r || hoverCoord.c !== c) {
-      setHoverCoord({ r, c });
-    }
+  const handleDragStartMineFromDock = (e) => {
+    e.dataTransfer.setData('text/plain', 'dock_mine');
+    setDraggedMine({ fromBoard: false });
+    setSelectedDockShip(null);
+    setDraggedShip(null);
+  };
+
+  const handleDragStartMineFromBoard = (e, r, c) => {
+    e.dataTransfer.setData('text/plain', `board_mine_${r}_${c}`);
+    setDraggedMine({ fromBoard: true, r, c });
+    setSelectedDockShip(null);
+    setDraggedShip(null);
   };
 
   const handleDrop = (e, r, c) => {
     e.preventDefault();
+
+    // Check if dragging a mine
+    if (draggedMine) {
+      sounds.playClick();
+      // Cannot place mine on top of a ship
+      if (grid[r][c] !== 0) {
+        setErrorMessage('Mina morska musi znajdować się w wolnej wodzie (nie na statku)!');
+        setDraggedMine(null);
+        return;
+      }
+
+      let newMines = placedMines;
+      if (draggedMine.fromBoard) {
+        // remove old mine position
+        newMines = placedMines.filter(m => !(m.r === draggedMine.r && m.c === draggedMine.c));
+      }
+
+      // Check if new position already has mine
+      if (newMines.some(m => m.r === r && m.c === c)) {
+        setErrorMessage('W tym miejscu już znajduje się mina.');
+        setDraggedMine(null);
+        return;
+      }
+
+      if (newMines.length >= maxMines) {
+        setErrorMessage(`Osiągnięto limit min (${maxMines}).`);
+        setDraggedMine(null);
+        return;
+      }
+
+      setPlacedMines([...newMines, { r, c }]);
+      setDraggedMine(null);
+      setErrorMessage('');
+      return;
+    }
+
     handleCellClick(r, c);
   };
 
@@ -441,9 +487,20 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                     return (
                       <button
                         key={`${rIdx}-${cIdx}`}
-                        draggable={isOccupied}
-                        onDragStart={(e) => shipObj && handleDragStartFromBoard(e, shipObj)}
-                        onDragOver={(e) => handleDragOver(e, rIdx, cIdx)}
+                        draggable={isOccupied || isMineCell}
+                        onDragStart={(e) => {
+                          if (isOccupied && shipObj) {
+                            handleDragStartFromBoard(e, shipObj);
+                          } else if (isMineCell) {
+                            handleDragStartMineFromBoard(e, rIdx, cIdx);
+                          }
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (!hoverCoord || hoverCoord.r !== rIdx || hoverCoord.c !== cIdx) {
+                            setHoverCoord({ r: rIdx, c: cIdx });
+                          }
+                        }}
                         onDrop={(e) => handleDrop(e, rIdx, cIdx)}
                         onClick={() => handleCellClick(rIdx, cIdx)}
                         onMouseEnter={() => setHoverCoord({ r: rIdx, c: cIdx })}
@@ -454,7 +511,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                           isOccupied
                             ? 'Kliknij lub przeciągnij, aby przenieść w inne miejsce'
                             : isMineCell
-                            ? 'Twoja mina morska (kliknij, by usunąć)'
+                            ? 'Mina morska: przeciągnij w inne miejsce lub kliknij, aby usunąć'
                             : mineMode
                             ? 'Kliknij, aby postawić minę'
                             : ''
@@ -540,10 +597,60 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
           </h3>
 
           <p className="text-xs text-slate-500 mb-3">
-            Przeciągaj statki myszką z doków lub planszy. Kliknięcie postawionego statku pozwala przenieść go w inne miejsce.
+            Przeciągaj statki i miny myszką z doków lub planszy. Kliknięcie postawionego statku pozwala przenieść go w inne miejsce.
           </p>
 
           <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+            {/* Mines Dock Card */}
+            {maxMines > 0 && (
+              <div
+                draggable={placedMines.length < maxMines}
+                onDragStart={handleDragStartMineFromDock}
+                onClick={() => {
+                  sounds.playClick();
+                  setMineMode(!mineMode);
+                  setSelectedDockShip(null);
+                  setDraggedShip(null);
+                  setErrorMessage(
+                    !mineMode
+                      ? `Tryb Min Morskich aktywny! Kliknij wolne pole wodne na planszy lub przeciągnij minę (${placedMines.length}/${maxMines}).`
+                      : ''
+                  );
+                }}
+                className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between ${
+                  mineMode
+                    ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-400/40 shadow-xs'
+                    : placedMines.length >= maxMines
+                    ? 'bg-slate-50 border-slate-200 opacity-60'
+                    : 'bg-white border-rose-200 hover:border-rose-400 hover:bg-rose-50/40'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-600 shadow-2xs">
+                    <Bomb className="w-5 h-5 animate-bounce" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-rose-950 flex items-center space-x-1.5">
+                      <span>Miny Morskie (Przeciągnij)</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      Przeciągnij na wolną wodę lub kliknij pole
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                    placedMines.length >= maxMines
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {placedMines.length} / {maxMines}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {dockFleet.map((ship) => {
               const isSelected = selectedDockShip?.size === ship.size && selectedDockShip?.shape === ship.shape;
               const isDone = ship.remaining === 0;
