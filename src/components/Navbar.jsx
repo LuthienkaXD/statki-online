@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Anchor, Trophy, Volume2, VolumeX, LogIn, LogOut, Info, Shield } from 'lucide-react';
+import { Anchor, Trophy, Volume2, VolumeX, LogIn, LogOut, Info, Shield, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export default function Navbar({
@@ -10,7 +10,11 @@ export default function Navbar({
   onOpenRules,
   onOpenAdmin,
   currentRoomId,
-  onLeaveRoom
+  onLeaveRoom,
+  boardZoom = 100,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom
 }) {
   const [soundEnabled, setSoundEnabled] = useState(sounds.enabled);
 
@@ -49,8 +53,41 @@ export default function Navbar({
         )}
 
         {/* Actions */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="flex items-center space-x-1.5 sm:space-x-2">
           
+          {/* Zoom controls for boards (- and +) placed directly to the left of (i) */}
+          <div className="flex items-center bg-slate-100/90 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
+            <button
+              onClick={() => { sounds.playClick(); onZoomOut(); }}
+              disabled={boardZoom <= 70}
+              className={`p-1.5 rounded-lg text-slate-700 hover:text-blue-600 hover:bg-white transition cursor-pointer ${
+                boardZoom <= 70 ? 'opacity-30 cursor-not-allowed' : ''
+              }`}
+              title="Pomniejsz plansze (-10%)"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => { sounds.playClick(); onResetZoom(); }}
+              className="px-1.5 py-0.5 text-[11px] font-mono font-bold text-slate-700 hover:text-blue-600 transition"
+              title="Resetuj skalę (100%)"
+            >
+              {boardZoom}%
+            </button>
+
+            <button
+              onClick={() => { sounds.playClick(); onZoomIn(); }}
+              disabled={boardZoom >= 150}
+              className={`p-1.5 rounded-lg text-slate-700 hover:text-blue-600 hover:bg-white transition cursor-pointer ${
+                boardZoom >= 150 ? 'opacity-30 cursor-not-allowed' : ''
+              }`}
+              title="Powiększ plansze (+10%)"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* Rules button */}
           <button
             onClick={onOpenRules}

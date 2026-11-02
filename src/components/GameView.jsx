@@ -30,7 +30,8 @@ export default function GameView({
   onLeaveRoom,
   onUseRecon,
   onUseSonar,
-  onActivateSalvo
+  onActivateSalvo,
+  boardZoom = 100
 }) {
   const [chatInput, setChatInput] = useState('');
   const [chatPresets, setChatPresets] = useState([]);
@@ -424,7 +425,10 @@ export default function GameView({
             </div>
           </div>
 
-          <div className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl max-w-full overflow-x-auto">
+          <div
+            style={{ zoom: `${boardZoom}%` }}
+            className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl max-w-full overflow-x-auto transition-[zoom] duration-150 origin-top"
+          >
             <div
               className="grid gap-0.5 items-center"
               style={{
@@ -521,7 +525,10 @@ export default function GameView({
             </div>
           </div>
 
-          <div className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl shadow-inner max-w-full overflow-x-auto">
+          <div
+            style={{ zoom: `${boardZoom}%` }}
+            className="inline-block p-2 bg-slate-50 border-2 border-slate-300 rounded-xl shadow-inner max-w-full overflow-x-auto transition-[zoom] duration-150 origin-top"
+          >
             <div
               className="grid gap-0.5 items-center"
               style={{

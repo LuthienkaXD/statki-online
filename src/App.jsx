@@ -22,6 +22,31 @@ export default function App() {
   const [announcement, setAnnouncement] = useState('');
   const [copied, setCopied] = useState(false);
   const [openRooms, setOpenRooms] = useState([]);
+  const [boardZoom, setBoardZoom] = useState(() => {
+    const saved = localStorage.getItem('battleship_zoom');
+    return saved ? Math.min(150, Math.max(70, Number(saved))) : 100;
+  });
+
+  const handleZoomIn = () => {
+    setBoardZoom(prev => {
+      const next = Math.min(150, prev + 10);
+      localStorage.setItem('battleship_zoom', String(next));
+      return next;
+    });
+  };
+
+  const handleZoomOut = () => {
+    setBoardZoom(prev => {
+      const next = Math.max(70, prev - 10);
+      localStorage.setItem('battleship_zoom', String(next));
+      return next;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setBoardZoom(100);
+    localStorage.setItem('battleship_zoom', '100');
+  };
 
   // Modals
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -254,6 +279,10 @@ export default function App() {
         onOpenAdmin={() => setIsAdminOpen(true)}
         currentRoomId={currentRoomId}
         onLeaveRoom={currentRoomId ? handleLeaveRoom : null}
+        boardZoom={boardZoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
       />
 
       {/* Global Announcement Banner */}
@@ -347,6 +376,7 @@ export default function App() {
               isBotGame={gameState.isBotGame}
               boardSize={gameState.boardSize || 10}
               options={gameState.options || {}}
+              boardZoom={boardZoom}
             />
           )
         ) : gameState.status === 'rps' ? (
@@ -369,6 +399,7 @@ export default function App() {
             onUseRecon={handleUseRecon}
             onUseSonar={handleUseSonar}
             onActivateSalvo={handleActivateSalvo}
+            boardZoom={boardZoom}
           />
         )}
       </main>

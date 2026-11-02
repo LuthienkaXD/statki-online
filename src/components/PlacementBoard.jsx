@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
-export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, options = {} }) {
+export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, options = {}, boardZoom = 100 }) {
   const [placedShips, setPlacedShips] = useState([]);
   const [placedMines, setPlacedMines] = useState([]);
   const [mineMode, setMineMode] = useState(false);
@@ -447,7 +447,10 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
         
         {/* Left: Dynamic Board */}
         <div className="lg:col-span-7 flex flex-col items-center">
-          <div className="inline-block p-3 sm:p-4 bg-white border-2 border-slate-300 rounded-2xl shadow-md overflow-x-auto max-w-full">
+          <div
+            style={{ zoom: `${boardZoom}%` }}
+            className="inline-block p-3 sm:p-4 bg-white border-2 border-slate-300 rounded-2xl shadow-md overflow-x-auto max-w-full transition-[zoom] duration-150 origin-top"
+          >
             
             <div
               className="grid gap-1 items-center"
