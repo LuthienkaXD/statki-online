@@ -153,7 +153,7 @@ class GameRoom {
     return { valid: true };
   }
 
-  handleRpsChoice(playerKey, choice) {
+  handleRpsChoice(playerKey, choice, onTransition) {
     if (this.status !== 'rps') return { error: 'Nie faza RPS' };
     if (!['rock', 'paper', 'scissors'].includes(choice)) return { error: 'Zły wybór' };
 
@@ -190,6 +190,9 @@ class GameRoom {
       setTimeout(() => {
         if (this.status === 'rps') {
           this.status = 'playing';
+          if (typeof onTransition === 'function') {
+            onTransition();
+          }
         }
       }, 1800);
 

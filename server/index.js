@@ -449,20 +449,24 @@ io.on('connection', (socket) => {
     const room = activeRooms.get(currentRoomId);
     if (!room) return;
 
-    room.handleRpsChoice(playerKey, choice);
-    broadcastRoomState(room);
+    room.handleRpsChoice(playerKey, choice, () => {
+      // Callback fired after transition delay to playing
+      broadcastRoomState(room);
 
-    // If transitioned to playing and bot goes first
-    if (room.isBotGame && room.status === 'playing' && room.turn === 'p2') {
-      setTimeout(() => {
-        if (room.status === 'playing' && room.turn === 'p2') {
-          const botResult = room.stepBot();
-          if (botResult && botResult.success) {
-            broadcastRoomState(room);
+      // If bot goes first in battle
+      if (room.isBotGame && room.status === 'playing' && room.turn === 'p2') {
+        setTimeout(() => {
+          if (room.status === 'playing' && room.turn === 'p2') {
+            const botResult = room.stepBot();
+            if (botResult && botResult.success) {
+              broadcastRoomState(room);
+            }
           }
-        }
-      }, 1000);
-    }
+        }, 1000);
+      }
+    });
+
+    broadcastRoomState(room);
   });
 
   // Rock Paper Scissors rematch on tie
