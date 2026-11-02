@@ -7,8 +7,9 @@ import GameView from './components/GameView';
 import AuthModal from './components/AuthModal';
 import LeaderboardModal from './components/LeaderboardModal';
 import RulesModal from './components/RulesModal';
+import AdminModal from './components/AdminModal';
 import { sounds } from './utils/audio';
-import { Users, Copy, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Users, Copy, Check, Loader2, AlertCircle, Bell } from 'lucide-react';
 
 export default function App() {
   const [socket, setSocket] = useState(null);
@@ -17,12 +18,14 @@ export default function App() {
   const [playerKey, setPlayerKey] = useState(null);
   const [gameState, setGameState] = useState(null);
   const [errorNotice, setErrorNotice] = useState('');
+  const [announcement, setAnnouncement] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Modals
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   const prevGameStateRef = useRef(null);
 
@@ -30,6 +33,14 @@ export default function App() {
   useEffect(() => {
     const s = io();
     setSocket(s);
+
+    // Fetch public announcement
+    fetch('/api/system/public')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.announcement) setAnnouncement(data.announcement);
+      })
+      .catch(() => {});
 
     // Check user token
     const token = localStorage.getItem('battleship_token');
@@ -195,9 +206,18 @@ export default function App() {
         onLogout={handleLogout}
         onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
         onOpenRules={() => setIsRulesOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
         currentRoomId={currentRoomId}
         onLeaveRoom={currentRoomId ? handleLeaveRoom : null}
       />
+
+      {/* Global Announcement Banner */}
+      {announcement && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 py-2 px-4 text-center text-xs text-amber-900 font-medium flex items-center justify-center space-x-2">
+          <Bell className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          <span>{announcement}</span>
+        </div>
+      )}
 
       {/* Global Error Banner */}
       {errorNotice && (
@@ -313,6 +333,12 @@ export default function App() {
       <RulesModal
         isOpen={isRulesOpen}
         onClose={() => setIsRulesOpen(false)}
+      />
+
+      <AdminModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        token={localStorage.getItem('battleship_token')}
       />
 
     </div>

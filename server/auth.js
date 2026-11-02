@@ -14,7 +14,7 @@ function verifyPassword(password, hash) {
 
 function generateToken(user) {
   return jwt.sign(
-    { id: user.id, username: user.username },
+    { id: user.id, username: user.username, role: user.role },
     JWT_SECRET,
     { expiresIn: '30d' }
   );
@@ -45,6 +45,17 @@ async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Użytkownik nie istnieje' });
   }
 
+  if (req.user.is_banned) {
+    return res.status(403).json({ error: 'Twoje konto zostało zablokowane przez administratora.' });
+  }
+
+  next();
+}
+
+function adminMiddleware(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Dostęp zabroniony. Wymagane uprawnienia administratora.' });
+  }
   next();
 }
 
@@ -53,5 +64,6 @@ module.exports = {
   verifyPassword,
   generateToken,
   verifyToken,
-  authMiddleware
+  authMiddleware,
+  adminMiddleware
 };

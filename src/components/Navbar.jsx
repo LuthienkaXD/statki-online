@@ -8,6 +8,7 @@ export default function Navbar({
   onLogout,
   onOpenLeaderboard,
   onOpenRules,
+  onOpenAdmin,
   currentRoomId,
   onLeaveRoom
 }) {
@@ -17,6 +18,8 @@ export default function Navbar({
     const next = sounds.toggle();
     setSoundEnabled(next);
   };
+
+  const isAdmin = user && (user.role === 'admin' || user.username?.toLowerCase() === 'dominika');
 
   return (
     <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-40 shadow-xs">
@@ -78,19 +81,37 @@ export default function Navbar({
 
           {/* User Profile / Auth */}
           {user ? (
-            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-1 py-1">
-              <div className="text-left text-xs">
+            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-1 py-1">
+              <button
+                onClick={() => {
+                  if (isAdmin) {
+                    sounds.playClick();
+                    onOpenAdmin();
+                  }
+                }}
+                className={`text-left text-xs transition ${
+                  isAdmin ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+                }`}
+                title={isAdmin ? 'Kliknij, aby otworzyć Panel Administratora' : user.username}
+              >
                 <div className="font-semibold text-slate-800 flex items-center space-x-1">
-                  <Shield className="w-3 h-3 text-blue-600" />
-                  <span>{user.username}</span>
+                  <Shield className={`w-3.5 h-3.5 ${isAdmin ? 'text-amber-500 fill-amber-500' : 'text-blue-600'}`} />
+                  <span className={isAdmin ? 'text-indigo-900 font-bold underline decoration-amber-500 decoration-2 underline-offset-2' : ''}>
+                    {user.username}
+                  </span>
+                  {isAdmin && (
+                    <span className="ml-1 text-[9px] bg-amber-500 text-white font-bold px-1.5 py-0.2 rounded-full font-mono uppercase tracking-wide">
+                      Admin
+                    </span>
+                  )}
                 </div>
                 <div className="text-[10px] text-slate-500">
                   W: <span className="text-emerald-600 font-mono font-bold">{user.wins || 0}</span> | P: <span className="text-rose-600 font-mono">{user.losses || 0}</span>
                 </div>
-              </div>
+              </button>
               <button
                 onClick={onLogout}
-                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-200 rounded transition"
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-200 rounded-lg transition"
                 title="Wyloguj się"
               >
                 <LogOut className="w-4 h-4" />

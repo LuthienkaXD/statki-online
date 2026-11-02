@@ -12,13 +12,25 @@ const {
   getUserById,
   getDailyLeaderboard,
   getAllTimeLeaderboard,
-  getRecentMatches
+  getRecentMatches,
+  getAllUsers,
+  updateUserRole,
+  toggleUserBan,
+  resetUserStats,
+  deleteUser,
+  getChatPresets,
+  addChatPreset,
+  deleteChatPreset,
+  getSystemSettings,
+  updateSystemSetting,
+  getAdminStats
 } = require('./db');
 const {
   hashPassword,
   verifyPassword,
   generateToken,
-  authMiddleware
+  authMiddleware,
+  adminMiddleware
 } = require('./auth');
 
 const app = express();
@@ -147,6 +159,147 @@ app.get('/api/leaderboard/all-time', async (req, res) => {
   } catch (err) {
     console.error('Error fetching all-time leaderboard:', err);
     res.status(500).json({ error: 'Błąd pobierania rankingu ogólnego.' });
+  }
+});
+
+// Public chat presets dictionary
+app.get('/api/chat/presets', async (req, res) => {
+  try {
+    const presets = await getChatPresets();
+    const settings = await getSystemSettings();
+    res.json({
+      presets: presets.map(p => p.text),
+      freeTextAllowed: settings.chat_free_text_allowed !== 'false'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd słownika wiadomości' });
+  }
+});
+
+// Public announcement / system settings
+app.get('/api/system/public', async (req, res) => {
+  try {
+    const settings = await getSystemSettings();
+    res.json({
+      announcement: settings.announcement || '',
+      maintenanceMode: settings.maintenance_mode === 'true'
+    });
+  } catch (err) {
+    res.json({ announcement: '', maintenanceMode: false });
+  }
+});
+
+// ---------------- Admin Routes (Protected by adminMiddleware) ----------------
+
+app.get('/api/admin/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const stats = await getAdminStats();
+    res.json({ stats, activeRoomsCount: activeRooms.size });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd pobierania statystyk admina.' });
+  }
+});
+
+app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const users = await getAllUsers();
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd pobierania użytkowników.' });
+  }
+});
+
+app.patch('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['user', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Nieprawidłowa rola.' });
+    }
+    const updated = await updateUserRole(req.params.id, role);
+    res.json({ user: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd zmiany roli.' });
+  }
+});
+
+app.patch('/api/admin/users/:id/ban', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { isBanned } = req.body;
+    const updated = await toggleUserBan(req.params.id, isBanned);
+    res.json({ user: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd blokady użytkownika.' });
+  }
+});
+
+app.post('/api/admin/users/:id/reset-stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const updated = await resetUserStats(req.params.id);
+    res.json({ user: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd resetowania statystyk.' });
+  }
+});
+
+app.delete('/api/admin/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await deleteUser(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd usuwania użytkownika.' });
+  }
+});
+
+// Chat Presets Admin
+app.get('/api/admin/chat-presets', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const presets = await getChatPresets();
+    res.json({ presets });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd słownika czatu.' });
+  }
+});
+
+app.post('/api/admin/chat-presets', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Treść wiadomości nie może być pusta.' });
+    }
+    const created = await addChatPreset(text.trim());
+    res.json({ preset: created });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd dodawania wiadomości do słownika.' });
+  }
+});
+
+app.delete('/api/admin/chat-presets/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await deleteChatPreset(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd usuwania ze słownika.' });
+  }
+});
+
+// System Settings Admin
+app.get('/api/admin/settings', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const settings = await getSystemSettings();
+    res.json({ settings });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd ustawień.' });
+  }
+});
+
+app.post('/api/admin/settings', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ error: 'Brak klucza.' });
+    await updateSystemSetting(key, value);
+    res.json({ success: true, key, value });
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd zapisu ustawienia.' });
   }
 });
 

@@ -26,7 +26,18 @@ if (isPostgres) {
   console.log('Using local SQLite fallback.');
 }
 
-// Initialize tables
+const DEFAULT_CHAT_PRESETS = [
+  'Cześć!',
+  'Powodzenia!',
+  'Dobre trafienie!',
+  'Pudło! 😜',
+  'Zatopiłeś mój okręt!',
+  'Gramy rewanż?',
+  'Dzięki za grę!',
+  'Niezły strzał!'
+];
+
+// Initialize tables and run migrations
 async function initDb() {
   if (isPostgres) {
     await pgPool.query(`
@@ -38,8 +49,21 @@ async function initDb() {
         wins INT NOT NULL DEFAULT 0,
         losses INT NOT NULL DEFAULT 0,
         hits INT NOT NULL DEFAULT 0,
-        shots INT NOT NULL DEFAULT 0
+        shots INT NOT NULL DEFAULT 0,
+        role VARCHAR(20) NOT NULL DEFAULT 'user',
+        is_banned BOOLEAN NOT NULL DEFAULT false
       );
+
+      -- Add columns if missing in existing table
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'role') THEN
+          ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_banned') THEN
+          ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+      END $$;
 
       CREATE TABLE IF NOT EXISTS matches (
         id SERIAL PRIMARY KEY,
@@ -54,11 +78,58 @@ async function initDb() {
         turns_count INT NOT NULL DEFAULT 0
       );
 
+      CREATE TABLE IF NOT EXISTS chat_presets (
+        id SERIAL PRIMARY KEY,
+        text VARCHAR(150) UNIQUE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(50) PRIMARY KEY,
+        value TEXT NOT NULL,
+        description TEXT
+      );
+
       CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date_day);
       CREATE INDEX IF NOT EXISTS idx_users_wins ON users(wins DESC);
     `);
-    console.log('Supabase / PostgreSQL tables verified.');
+
+    // Ensure default admin user "Dominika" exists with role admin
+    const checkDominika = await pgPool.query('SELECT id, role FROM users WHERE LOWER(username) = LOWER($1)', ['Dominika']);
+    if (checkDominika.rows.length === 0) {
+      const bcrypt = require('bcryptjs');
+      const defaultHash = bcrypt.hashSync('Dominika123!', 10);
+      await pgPool.query(
+        "INSERT INTO users (username, password_hash, role) VALUES ($1, $2, 'admin')",
+        ['Dominika', defaultHash]
+      );
+      console.log('Created default admin user: Dominika (password: Dominika123!)');
+    } else if (checkDominika.rows[0].role !== 'admin') {
+      await pgPool.query("UPDATE users SET role = 'admin' WHERE LOWER(username) = LOWER($1)", ['Dominika']);
+      console.log('Promoted user Dominika to admin.');
+    }
+
+    // Seed default chat presets if empty
+    const presetsCheck = await pgPool.query('SELECT COUNT(*)::int as cnt FROM chat_presets');
+    if (presetsCheck.rows[0].cnt === 0) {
+      for (const text of DEFAULT_CHAT_PRESETS) {
+        await pgPool.query('INSERT INTO chat_presets (text) VALUES ($1) ON CONFLICT DO NOTHING', [text]);
+      }
+    }
+
+    // Default settings
+    await pgPool.query(`
+      INSERT INTO system_settings (key, value, description)
+      VALUES 
+        ('maintenance_mode', 'false', 'Prace techniczne - blokada tworzenia nowych gier'),
+        ('announcement', 'Witaj w grze Statki Online! Miłej zabawy!', 'Globalny komunikat wyświetlany w lobby'),
+        ('chat_free_text_allowed', 'true', 'Czy gracze mogą pisać dowolny tekst poza szybkimi wiadomościami ze słownika')
+      ON CONFLICT (key) DO NOTHING;
+    `);
+
+    console.log('Supabase tables & Admin setup verified.');
   } else {
+    // SQLite Fallback
     sqliteDb.exec(`
       PRAGMA journal_mode = WAL;
 
@@ -70,7 +141,9 @@ async function initDb() {
         wins INTEGER NOT NULL DEFAULT 0,
         losses INTEGER NOT NULL DEFAULT 0,
         hits INTEGER NOT NULL DEFAULT 0,
-        shots INTEGER NOT NULL DEFAULT 0
+        shots INTEGER NOT NULL DEFAULT 0,
+        role TEXT NOT NULL DEFAULT 'user',
+        is_banned INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS matches (
@@ -88,9 +161,45 @@ async function initDb() {
         FOREIGN KEY(player2_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS chat_presets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT UNIQUE NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        description TEXT
+      );
+
       CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date_day);
       CREATE INDEX IF NOT EXISTS idx_users_wins ON users(wins DESC);
     `);
+
+    // Ensure Dominika exists in SQLite
+    const stmtCheck = sqliteDb.prepare('SELECT id, role FROM users WHERE username = ? COLLATE NOCASE');
+    const existing = stmtCheck.get('Dominika');
+    if (!existing) {
+      const bcrypt = require('bcryptjs');
+      const defaultHash = bcrypt.hashSync('Dominika123!', 10);
+      sqliteDb.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')").run('Dominika', defaultHash);
+    } else if (existing.role !== 'admin') {
+      sqliteDb.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(existing.id);
+    }
+
+    const cnt = sqliteDb.prepare('SELECT COUNT(*) as cnt FROM chat_presets').get().cnt;
+    if (cnt === 0) {
+      const ins = sqliteDb.prepare('INSERT OR IGNORE INTO chat_presets (text) VALUES (?)');
+      for (const t of DEFAULT_CHAT_PRESETS) ins.run(t);
+    }
+
+    sqliteDb.prepare(`
+      INSERT OR IGNORE INTO system_settings (key, value, description)
+      VALUES 
+        ('maintenance_mode', 'false', 'Prace techniczne'),
+        ('announcement', 'Witaj w grze Statki Online!', 'Globalny komunikat'),
+        ('chat_free_text_allowed', 'true', 'Dozwolony wolny tekst w czacie')
+    `).run();
   }
 }
 
@@ -99,29 +208,37 @@ async function getUserByUsername(username) {
     const res = await pgPool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username]);
     return res.rows[0] || null;
   }
-  const stmt = sqliteDb.prepare('SELECT * FROM users WHERE username = ?');
+  const stmt = sqliteDb.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE');
   return stmt.get(username) || null;
 }
 
 async function getUserById(id) {
   if (isPostgres) {
-    const res = await pgPool.query('SELECT id, username, created_at, wins, losses, hits, shots FROM users WHERE id = $1', [id]);
+    const res = await pgPool.query(
+      'SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots FROM users WHERE id = $1',
+      [id]
+    );
     return res.rows[0] || null;
   }
-  const stmt = sqliteDb.prepare('SELECT id, username, created_at, wins, losses, hits, shots FROM users WHERE id = ?');
+  const stmt = sqliteDb.prepare(
+    'SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots FROM users WHERE id = ?'
+  );
   return stmt.get(id) || null;
 }
 
-async function createUser(username, passwordHash) {
+async function createUser(username, passwordHash, role = 'user') {
+  // If user Dominika registers, always give admin role
+  const actualRole = username.toLowerCase() === 'dominika' ? 'admin' : role;
+
   if (isPostgres) {
     const res = await pgPool.query(
-      'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, wins, losses, hits, shots',
-      [username, passwordHash]
+      'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role, is_banned, created_at, wins, losses, hits, shots',
+      [username, passwordHash, actualRole]
     );
     return res.rows[0];
   }
-  const stmt = sqliteDb.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)');
-  const info = stmt.run(username, passwordHash);
+  const stmt = sqliteDb.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)');
+  const info = stmt.run(username, passwordHash, actualRole);
   return getUserById(Number(info.lastInsertRowid));
 }
 
@@ -318,6 +435,119 @@ async function getRecentMatches(userId = null, limit = 10) {
   return stmt.all(limit);
 }
 
+// ---------------- Admin Functions ----------------
+
+async function getAllUsers() {
+  if (isPostgres) {
+    const res = await pgPool.query(`
+      SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots
+      FROM users
+      ORDER BY id ASC
+    `);
+    return res.rows;
+  }
+  return sqliteDb.prepare('SELECT id, username, role, is_banned, created_at, wins, losses, hits, shots FROM users ORDER BY id ASC').all();
+}
+
+async function updateUserRole(userId, newRole) {
+  if (isPostgres) {
+    await pgPool.query('UPDATE users SET role = $1 WHERE id = $2', [newRole, userId]);
+    return getUserById(userId);
+  }
+  sqliteDb.prepare('UPDATE users SET role = ? WHERE id = ?').run(newRole, userId);
+  return getUserById(userId);
+}
+
+async function toggleUserBan(userId, isBanned) {
+  if (isPostgres) {
+    await pgPool.query('UPDATE users SET is_banned = $1 WHERE id = $2', [Boolean(isBanned), userId]);
+    return getUserById(userId);
+  }
+  sqliteDb.prepare('UPDATE users SET is_banned = ? WHERE id = ?').run(isBanned ? 1 : 0, userId);
+  return getUserById(userId);
+}
+
+async function resetUserStats(userId) {
+  if (isPostgres) {
+    await pgPool.query('UPDATE users SET wins = 0, losses = 0, hits = 0, shots = 0 WHERE id = $1', [userId]);
+    return getUserById(userId);
+  }
+  sqliteDb.prepare('UPDATE users SET wins = 0, losses = 0, hits = 0, shots = 0 WHERE id = ?').run(userId);
+  return getUserById(userId);
+}
+
+async function deleteUser(userId) {
+  if (isPostgres) {
+    await pgPool.query('DELETE FROM users WHERE id = $1', [userId]);
+    return true;
+  }
+  sqliteDb.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  return true;
+}
+
+// Chat Presets (Dictionary)
+async function getChatPresets() {
+  if (isPostgres) {
+    const res = await pgPool.query('SELECT * FROM chat_presets ORDER BY id ASC');
+    return res.rows;
+  }
+  return sqliteDb.prepare('SELECT * FROM chat_presets ORDER BY id ASC').all();
+}
+
+async function addChatPreset(text) {
+  if (isPostgres) {
+    const res = await pgPool.query('INSERT INTO chat_presets (text) VALUES ($1) RETURNING *', [text]);
+    return res.rows[0];
+  }
+  const info = sqliteDb.prepare('INSERT INTO chat_presets (text) VALUES (?)').run(text);
+  return { id: Number(info.lastInsertRowid), text };
+}
+
+async function deleteChatPreset(id) {
+  if (isPostgres) {
+    await pgPool.query('DELETE FROM chat_presets WHERE id = $1', [id]);
+    return true;
+  }
+  sqliteDb.prepare('DELETE FROM chat_presets WHERE id = ?').run(id);
+  return true;
+}
+
+// System Settings
+async function getSystemSettings() {
+  if (isPostgres) {
+    const res = await pgPool.query('SELECT * FROM system_settings');
+    const settings = {};
+    res.rows.forEach(r => { settings[r.key] = r.value; });
+    return settings;
+  }
+  const rows = sqliteDb.prepare('SELECT * FROM system_settings').all();
+  const settings = {};
+  rows.forEach(r => { settings[r.key] = r.value; });
+  return settings;
+}
+
+async function updateSystemSetting(key, value) {
+  if (isPostgres) {
+    await pgPool.query('UPDATE system_settings SET value = $1 WHERE key = $2', [String(value), key]);
+    return true;
+  }
+  sqliteDb.prepare('UPDATE system_settings SET value = ? WHERE key = ?').run(String(value), key);
+  return true;
+}
+
+async function getAdminStats() {
+  if (isPostgres) {
+    const usersCount = (await pgPool.query('SELECT COUNT(*)::int as cnt FROM users')).rows[0].cnt;
+    const matchesCount = (await pgPool.query('SELECT COUNT(*)::int as cnt FROM matches')).rows[0].cnt;
+    const presetsCount = (await pgPool.query('SELECT COUNT(*)::int as cnt FROM chat_presets')).rows[0].cnt;
+    return { usersCount, matchesCount, presetsCount };
+  }
+  const usersCount = sqliteDb.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
+  const matchesCount = sqliteDb.prepare('SELECT COUNT(*) as cnt FROM matches').get().cnt;
+  const presetsCount = sqliteDb.prepare('SELECT COUNT(*) as cnt FROM chat_presets').get().cnt;
+  return { usersCount, matchesCount, presetsCount };
+}
+
 module.exports = {
   initDb,
   getUserByUsername,
@@ -326,5 +556,17 @@ module.exports = {
   recordMatch,
   getDailyLeaderboard,
   getAllTimeLeaderboard,
-  getRecentMatches
+  getRecentMatches,
+  // Admin exports
+  getAllUsers,
+  updateUserRole,
+  toggleUserBan,
+  resetUserStats,
+  deleteUser,
+  getChatPresets,
+  addChatPreset,
+  deleteChatPreset,
+  getSystemSettings,
+  updateSystemSetting,
+  getAdminStats
 };

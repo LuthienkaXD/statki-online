@@ -12,8 +12,25 @@ export default function GameView({
   onLeaveRoom
 }) {
   const [chatInput, setChatInput] = useState('');
+  const [chatPresets, setChatPresets] = useState([]);
+  const [freeTextAllowed, setFreeTextAllowed] = useState(true);
   const [copied, setCopied] = useState(false);
   const chatBottomRef = useRef(null);
+
+  // Load chat dictionary presets from server
+  useEffect(() => {
+    fetch('/api/chat/presets')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.presets) {
+          setChatPresets(data.presets);
+          setFreeTextAllowed(data.freeTextAllowed !== false);
+        }
+      })
+      .catch(() => {
+        setChatPresets(['Cześć!', 'Dobre trafienie!', 'Gramy rewanż?', 'Pudło! 😜']);
+      });
+  }, []);
 
   const { me, enemy, turn, status, winner, isBotGame, roomId, chat } = gameState;
   const isMyTurn = status === 'playing' && turn === me?.key;
@@ -405,13 +422,13 @@ export default function GameView({
             <span className="text-[10px] text-slate-500 font-mono">Tura {gameState.turnsCount || 1}</span>
           </h3>
 
-          {/* Quick presets */}
-          <div className="flex flex-wrap gap-1 mb-2">
-            {['Cześć!', 'Dobre trafienie!', 'Gramy rewanż?', 'Pudło! 😜'].map((preset) => (
+          {/* Dynamic dictionary presets */}
+          <div className="flex flex-wrap gap-1 mb-2 max-h-24 overflow-y-auto">
+            {chatPresets.map((preset) => (
               <button
                 key={preset}
                 onClick={() => { sounds.playClick(); onSendChat(preset); }}
-                className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 transition"
+                className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-100 hover:text-blue-800 text-slate-700 border border-slate-200 transition font-medium cursor-pointer"
               >
                 {preset}
               </button>
@@ -441,29 +458,35 @@ export default function GameView({
               ))
             ) : (
               <div className="text-center text-slate-400 py-12 text-xs">
-                Brak wiadomości. Pozdrów rywala!
+                Brak wiadomości. Pozdrów rywala ze słownika!
               </div>
             )}
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Chat input */}
-          <form onSubmit={handleChatSubmit} className="mt-3 flex items-center space-x-2">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Napisz wiadomość..."
-              className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-              maxLength={120}
-            />
-            <button
-              type="submit"
-              className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-xs"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </form>
+          {/* Chat input form (or notice if free text is disabled by admin) */}
+          {freeTextAllowed ? (
+            <form onSubmit={handleChatSubmit} className="mt-3 flex items-center space-x-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Napisz wiadomość..."
+                className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                maxLength={120}
+              />
+              <button
+                type="submit"
+                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-xs"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          ) : (
+            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-center text-[11px] text-slate-500 font-medium">
+              🔒 Czat tekstowy jest wyłączony. Użyj gotowych wiadomości ze słownika powyżej.
+            </div>
+          )}
 
         </div>
 
