@@ -175,6 +175,16 @@ export default function App() {
     socket.emit('use_recon', { r, c });
   };
 
+  const handleUseSonar = (type, index) => {
+    if (!socket) return;
+    socket.emit('use_sonar', { type, index });
+  };
+
+  const handleActivateSalvo = () => {
+    if (!socket) return;
+    socket.emit('activate_salvo');
+  };
+
   const handleFireShot = (r, c) => {
     if (!socket) return;
     socket.emit('fire_shot', { r, c });
@@ -335,6 +345,8 @@ export default function App() {
             onRematch={handleRematch}
             onLeaveRoom={handleLeaveRoom}
             onUseRecon={handleUseRecon}
+            onUseSonar={handleUseSonar}
+            onActivateSalvo={handleActivateSalvo}
           />
         )}
       </main>

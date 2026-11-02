@@ -123,7 +123,12 @@ async function initDb() {
       VALUES 
         ('maintenance_mode', 'false', 'Prace techniczne - blokada tworzenia nowych gier'),
         ('announcement', 'Witaj w grze Statki Online! Miłej zabawy!', 'Globalny komunikat wyświetlany w lobby'),
-        ('chat_free_text_allowed', 'true', 'Czy gracze mogą pisać dowolny tekst poza szybkimi wiadomościami ze słownika')
+        ('chat_free_text_allowed', 'true', 'Czy gracze mogą pisać dowolny tekst poza szybkimi wiadomościami ze słownika'),
+        ('max_mines', '2', 'Maksymalna liczba min na gracza'),
+        ('mod_mines_enabled', 'true', 'Włącz modyfikator: Miny Morskie'),
+        ('mod_recon_enabled', 'true', 'Włącz modyfikator: Zwiad Lotniczy'),
+        ('mod_sonar_enabled', 'true', 'Włącz modyfikator: Sonar Impulsowy'),
+        ('mod_salvo_enabled', 'true', 'Włącz modyfikator: Salwa Flagowca')
       ON CONFLICT (key) DO NOTHING;
     `);
 

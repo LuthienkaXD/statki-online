@@ -176,16 +176,26 @@ app.get('/api/chat/presets', async (req, res) => {
   }
 });
 
-// Public announcement / system settings
+// Public announcement / system settings & available modifiers
 app.get('/api/system/public', async (req, res) => {
   try {
     const settings = await getSystemSettings();
     res.json({
       announcement: settings.announcement || '',
-      maintenanceMode: settings.maintenance_mode === 'true'
+      maintenanceMode: settings.maintenance_mode === 'true',
+      modifiersConfig: {
+        mines: settings.mod_mines_enabled !== 'false',
+        reconPlane: settings.mod_recon_enabled !== 'false',
+        sonar: settings.mod_sonar_enabled !== 'false',
+        flagshipSalvo: settings.mod_salvo_enabled !== 'false'
+      }
     });
   } catch (err) {
-    res.json({ announcement: '', maintenanceMode: false });
+    res.json({
+      announcement: '',
+      maintenanceMode: false,
+      modifiersConfig: { mines: true, reconPlane: true, sonar: true, flagshipSalvo: true }
+    });
   }
 });
 
@@ -436,6 +446,28 @@ io.on('connection', (socket) => {
 
     const res = room.useReconPlane(playerKey, r, c);
     socket.emit('recon_result', res);
+    broadcastRoomState(room);
+  });
+
+  // Sonar impulse
+  socket.on('use_sonar', ({ type, index }) => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    const res = room.useSonar(playerKey, type, index);
+    socket.emit('sonar_result', res);
+    broadcastRoomState(room);
+  });
+
+  // Flagship salvo activate
+  socket.on('activate_salvo', () => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    const res = room.activateFlagshipSalvo(playerKey);
+    socket.emit('salvo_result', res);
     broadcastRoomState(room);
   });
 

@@ -444,6 +444,50 @@ export default function AdminModal({ isOpen, onClose, token }) {
                 </button>
               </div>
 
+              {/* Toggles for Modifiers / Addons */}
+              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-3">
+                <div>
+                  <div className="font-semibold text-slate-900 text-xs sm:text-sm">
+                    Dostępność Modułów & Dodatków Rozgrywki
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    Włącz lub wyłącz poszczególne urozmaicenia gry dla wszystkich użytkowników serwera.
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {[
+                    { key: 'mod_mines_enabled', label: '💣 Miny Morskie', desc: 'Trafienie w minę zabiera kolejkę' },
+                    { key: 'mod_recon_enabled', label: '🛩️ Zwiad Lotniczy', desc: 'Skan radaru kwadratu 3x3' },
+                    { key: 'mod_sonar_enabled', label: '📡 Impuls Sonaru', desc: 'Echo akustyczne wiersza lub kolumny' },
+                    { key: 'mod_salvo_enabled', label: '⚡ Podwójna Salwa Flagowca', desc: '2 strzały gdy okręt flagowy cały' }
+                  ].map(mod => {
+                    const isEnabled = systemSettings[mod.key] !== 'false';
+                    return (
+                      <div
+                        key={mod.key}
+                        onClick={() => handleSaveSetting(mod.key, isEnabled ? 'false' : 'true')}
+                        className={`p-3 rounded-xl border flex items-center justify-between transition cursor-pointer ${
+                          isEnabled
+                            ? 'bg-emerald-50/70 border-emerald-300'
+                            : 'bg-slate-100 border-slate-200 opacity-60'
+                        }`}
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">{mod.label}</div>
+                          <div className="text-[10px] text-slate-500">{mod.desc}</div>
+                        </div>
+                        <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
+                          isEnabled ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                        }`}>
+                          {isEnabled ? 'WŁĄCZONY' : 'WYŁĄCZONY'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Max mines in game */}
               <div className="p-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
                 <div>

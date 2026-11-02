@@ -12,7 +12,9 @@ import {
   Copy,
   Bomb,
   Plane,
-  Radio
+  Radio,
+  Zap,
+  HelpCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
@@ -23,12 +25,15 @@ export default function GameView({
   onSendChat,
   onRematch,
   onLeaveRoom,
-  onUseRecon
+  onUseRecon,
+  onUseSonar,
+  onActivateSalvo
 }) {
   const [chatInput, setChatInput] = useState('');
   const [chatPresets, setChatPresets] = useState([]);
   const [freeTextAllowed, setFreeTextAllowed] = useState(true);
   const [reconActive, setReconActive] = useState(false);
+  const [sonarMode, setSonarMode] = useState(null); // null | 'row' | 'col'
   const [copied, setCopied] = useState(false);
   const chatBottomRef = useRef(null);
 
@@ -83,10 +88,18 @@ export default function GameView({
     if (!isMyTurn || isGameOver) return;
 
     if (reconActive) {
-      // Use reconnaissance plane radar
       setReconActive(false);
       sounds.playClick();
       if (onUseRecon) onUseRecon(r, c);
+      return;
+    }
+
+    if (sonarMode) {
+      const idx = sonarMode === 'row' ? r : c;
+      const type = sonarMode;
+      setSonarMode(null);
+      sounds.playClick();
+      if (onUseSonar) onUseSonar(type, idx);
       return;
     }
 
@@ -173,10 +186,10 @@ export default function GameView({
       <button
         key={`${r}-${c}`}
         onClick={() => handleShoot(r, c)}
-        disabled={!isMyTurn || isGameOver || (shot !== null && shot !== undefined)}
+        disabled={!isMyTurn || isGameOver || (!reconActive && !sonarMode && shot !== null && shot !== undefined)}
         style={inlineStyle}
         className={`h-6 sm:h-7 rounded border flex items-center justify-center transition-all ${
-          isMyTurn && !isGameOver && (shot === null || shot === undefined)
+          isMyTurn && !isGameOver && (reconActive || sonarMode || (shot === null || shot === undefined))
             ? 'cursor-pointer hover:border-blue-500 hover:scale-105 hover:ring-2 hover:ring-blue-400'
             : ''
         } ${cellClass}`}
@@ -197,8 +210,8 @@ export default function GameView({
   return (
     <div className="w-full max-w-7xl mx-auto p-2 sm:p-4 flex flex-col items-center">
       
-      {/* Top Banner: Status */}
-      <div className={`w-full max-w-5xl mb-4 flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 rounded-2xl shadow-sm border transition-all ${
+      {/* Top Banner: Status & Tactical Actions */}
+      <div className={`w-full max-w-5xl mb-3 flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl shadow-sm border transition-all ${
         isGameOver
           ? isWinner
             ? 'bg-gradient-to-r from-amber-50 to-emerald-50 border-amber-300'
@@ -230,7 +243,11 @@ export default function GameView({
               ) : isMyTurn ? (
                 <span className="text-emerald-600 flex items-center space-x-1.5">
                   <Crosshair className="w-4 h-4 animate-spin text-emerald-600" />
-                  <span>TWÓJ RUCH! Wybierz pole na planszy wroga</span>
+                  <span>
+                    {me?.salvoRemainingShots > 0
+                      ? `⚡ SALWA FLAGOWA AKTYWNA! (Pozostało strzałów: ${me.salvoRemainingShots})`
+                      : 'TWÓJ RUCH! Wybierz pole na planszy wroga'}
+                  </span>
                 </span>
               ) : (
                 <span className="text-slate-600">
@@ -240,24 +257,71 @@ export default function GameView({
             </div>
 
             <p className="text-xs text-slate-500 mt-0.5">
-              Plansza {boardSize}×{boardSize} • {options.mines ? '💣 Miny włączone (trafienie = utrata tury)' : ''}
+              Plansza {boardSize}×{boardSize}
+              {reconActive && ' • 🛩️ Wybierz centralną kratkę do zwiadu radarem'}
+              {sonarMode && ` • 📡 Kliknij na pole, by zbadać jego ${sonarMode === 'row' ? 'wiersz' : 'kolumnę'} sonarem`}
             </p>
           </div>
         </div>
 
-        {/* Action Controls: Recon plane or Rematch */}
-        <div className="flex items-center space-x-2 shrink-0">
-          {isMyTurn && options.reconPlane && !me?.reconUsed && (
+        {/* Tactical Actions Toolbar */}
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          
+          {/* Recon Plane */}
+          {isMyTurn && options.reconPlane && !me?.reconUsed && !isGameOver && (
             <button
-              onClick={() => { sounds.playClick(); setReconActive(!reconActive); }}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+              onClick={() => { sounds.playClick(); setReconActive(!reconActive); setSonarMode(null); }}
+              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
                 reconActive
-                  ? 'bg-amber-500 text-white animate-pulse ring-2 ring-amber-400'
+                  ? 'bg-blue-600 text-white ring-2 ring-blue-400 animate-pulse'
                   : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
               }`}
+              title="Zwiad radarowy kwadratu 3x3"
             >
-              <Plane className="w-4 h-4" />
-              <span>{reconActive ? 'Kliknij na cel radaru 3×3' : 'Zwiad lotniczy (Radar)'}</span>
+              <Plane className="w-3.5 h-3.5" />
+              <span>{reconActive ? 'Celuj 3×3' : 'Radar 3×3'}</span>
+            </button>
+          )}
+
+          {/* Sonar Impulse */}
+          {isMyTurn && options.sonar && !me?.sonarUsed && !isGameOver && (
+            <div className="relative inline-flex">
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  setSonarMode(sonarMode ? null : 'row');
+                  setReconActive(false);
+                }}
+                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                  sonarMode
+                    ? 'bg-teal-600 text-white ring-2 ring-teal-400 animate-pulse'
+                    : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
+                }`}
+                title="Wykrywa obecność statku w wybranym wierszu lub kolumnie"
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span>{sonarMode ? (sonarMode === 'row' ? 'Sonar: Wiersz' : 'Sonar: Kolumna') : 'Sonar'}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Flagship Salvo Double Shot */}
+          {isMyTurn && options.flagshipSalvo && !me?.salvoUsed && !isGameOver && (
+            <button
+              disabled={me?.flagshipDamaged}
+              onClick={() => {
+                sounds.playClick();
+                if (onActivateSalvo) onActivateSalvo();
+              }}
+              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs ${
+                me?.flagshipDamaged
+                  ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                  : 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/30 cursor-pointer animate-pulse'
+              }`}
+              title={me?.flagshipDamaged ? 'Okręt Flagowy został uszkodzony - salwa niedostępna' : 'Oddaj 2 strzały w jednej turze!'}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>{me?.flagshipDamaged ? 'Flagowiec Trafiony' : 'Podwójna Salwa (2×)'}</span>
             </button>
           )}
 
@@ -281,7 +345,7 @@ export default function GameView({
             !isBotGame && (
               <button
                 onClick={copyRoomLink}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 border border-slate-200 text-xs font-semibold transition cursor-pointer"
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 border border-slate-200 text-xs font-semibold transition cursor-pointer"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Skopiowano!' : 'Kopiuj link'}</span>

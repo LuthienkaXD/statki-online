@@ -18,7 +18,8 @@ class GameRoom {
       mines: Boolean(options.mines),
       minesCount: Number(options.minesCount) || 2,
       reconPlane: Boolean(options.reconPlane),
-      armorShip: Boolean(options.armorShip)
+      sonar: Boolean(options.sonar),
+      flagshipSalvo: Boolean(options.flagshipSalvo)
     };
 
     this.status = 'waiting'; // 'waiting', 'placement', 'rps', 'playing', 'finished'
@@ -58,7 +59,10 @@ class GameRoom {
         mines: botMines,
         shotsGrid: Array.from({ length: this.boardSize }, () => Array(this.boardSize).fill(null)),
         stats: { hits: 0, shots: 0 },
-        reconUsed: false
+        reconUsed: false,
+        sonarUsed: false,
+        salvoUsed: false,
+        salvoRemainingShots: 0
       };
       this.status = 'placement';
     }
@@ -77,7 +81,10 @@ class GameRoom {
       mines: [],
       shotsGrid: Array.from({ length: this.boardSize }, () => Array(this.boardSize).fill(null)),
       stats: { hits: 0, shots: 0 },
-      reconUsed: false
+      reconUsed: false,
+      sonarUsed: false,
+      salvoUsed: false,
+      salvoRemainingShots: 0
     };
 
     if (!this.players.p1) {
@@ -131,7 +138,7 @@ class GameRoom {
 
     player.ready = true;
 
-    // When both players set ships -> transition to Rock-Paper-Scissors minigame!
+    // Transition to Rock Paper Scissors
     if (this.players.p1?.ready && this.players.p2?.ready) {
       this.status = 'rps';
       this.rps = {
@@ -146,7 +153,6 @@ class GameRoom {
     return { valid: true };
   }
 
-  // Rock Paper Scissors move
   handleRpsChoice(playerKey, choice) {
     if (this.status !== 'rps') return { error: 'Nie faza RPS' };
     if (!['rock', 'paper', 'scissors'].includes(choice)) return { error: 'Zły wybór' };
@@ -154,16 +160,11 @@ class GameRoom {
     if (playerKey === 'p1') this.rps.p1Choice = choice;
     if (playerKey === 'p2') this.rps.p2Choice = choice;
 
-    // Check if both selected
     if (this.rps.p1Choice && this.rps.p2Choice) {
       const c1 = this.rps.p1Choice;
       const c2 = this.rps.p2Choice;
 
-      const p1Name = this.players.p1.name;
-      const p2Name = this.players.p2.name;
-
       if (c1 === c2) {
-        // Remis - reset and try again
         this.rps.resultText = `Remis! Oboje wybrali ${c1 === 'rock' ? 'Kamień' : c1 === 'paper' ? 'Papier' : 'Nożyce'}. Gramy dogrywkę!`;
         this.addChatMessage(null, this.rps.resultText);
         setTimeout(() => {
@@ -188,7 +189,6 @@ class GameRoom {
       this.turn = winnerKey;
       this.addChatMessage(null, this.rps.resultText);
 
-      // Start main game after small delay
       setTimeout(() => {
         if (this.status === 'rps') {
           this.status = 'playing';
@@ -201,7 +201,7 @@ class GameRoom {
     return { waiting: true };
   }
 
-  // Reconnaissance plane skill: reveal 3x3 area without hitting
+  // Feature 1: Reconnaissance plane
   useReconPlane(playerKey, centerR, centerC) {
     if (!this.options.reconPlane) return { error: 'Samolot zwiadowczy wyłączony' };
     const player = this.players[playerKey];
@@ -230,6 +230,54 @@ class GameRoom {
     return { success: true, foundShip };
   }
 
+  // Feature 2: Sonar Impulse (Scan entire row or col for sound echoes)
+  useSonar(playerKey, type, index) {
+    if (!this.options.sonar) return { error: 'Sonar wyłączony' };
+    const player = this.players[playerKey];
+    if (player.sonarUsed) return { error: 'Sonar był już wykorzystany' };
+    if (this.turn !== playerKey) return { error: 'To nie Twoja tura' };
+
+    player.sonarUsed = true;
+    const enemyKey = playerKey === 'p1' ? 'p2' : 'p1';
+    const enemy = this.players[enemyKey];
+
+    let detected = false;
+    if (type === 'row') {
+      detected = enemy.ships.some(s => s.cells.some(c => c.r === index));
+    } else {
+      detected = enemy.ships.some(s => s.cells.some(c => c.c === index));
+    }
+
+    const lineLabel = type === 'row' ? `Wiersz ${index + 1}` : `Kolumna ${index + 1}`;
+    this.addChatMessage(
+      null,
+      `📡 ${player.name} wysłał impuls Sonaru [${lineLabel}] ➔ ${detected ? 'ECHO ODEBRANE! (Wykryto okręt w linii)' : 'BRAK ECHA (Linia jest czysta)'}`
+    );
+
+    return { success: true, detected, type, index };
+  }
+
+  // Feature 3: Flagship Salvo (Double Shot when flagship is intact)
+  activateFlagshipSalvo(playerKey) {
+    if (!this.options.flagshipSalvo) return { error: 'Salwa flagowca wyłączona' };
+    const player = this.players[playerKey];
+    if (player.salvoUsed) return { error: 'Salwa flagowca była już wykorzystana' };
+    if (this.turn !== playerKey) return { error: 'To nie Twoja tura' };
+
+    // Find biggest ship (flagship)
+    const flagship = [...player.ships].sort((a, b) => b.size - a.size)[0];
+    const isDamaged = flagship.cells.some(c => c.hit);
+    if (isDamaged) {
+      return { error: 'Twój Okręt Flagowy został uszkodzony! Nie możesz odpalić salwy flagowej.' };
+    }
+
+    player.salvoUsed = true;
+    player.salvoRemainingShots = 2; // 2 shots in this turn!
+
+    this.addChatMessage(null, `⚡ ${player.name} odbezpiecza PODWÓJNĄ SALWĘ FLAGOWĄ! (Oddaje 2 potężne strzały w tej turze)`);
+    return { success: true, remainingShots: player.salvoRemainingShots };
+  }
+
   makeShot(playerKey, r, c) {
     if (this.status !== 'playing') {
       return { error: 'Gra nie jest jeszcze w trakcie bitwy' };
@@ -254,9 +302,16 @@ class GameRoom {
 
     this.turnsCount++;
 
+    // Salvo handling
+    let inSalvo = false;
+    if (shooter.salvoRemainingShots > 0) {
+      shooter.salvoRemainingShots--;
+      inSalvo = shooter.salvoRemainingShots > 0;
+    }
+
     if (shotResult.isMine) {
-      // Hit a mine! Shooter loses their turn!
-      this.addChatMessage(null, `💥 BOOM! ${shooter.name} wpłynął na MINĘ MORSKĄ i natychmiast traci kolejkę!`);
+      this.addChatMessage(null, `💥 BOOM! ${shooter.name} wpłynął na MINĘ MORSKĄ i traci turę!`);
+      shooter.salvoRemainingShots = 0;
       this.turn = targetKey;
     } else if (shotResult.hit) {
       if (shotResult.allSunk) {
@@ -270,10 +325,14 @@ class GameRoom {
           turns: this.turnsCount
         });
       }
-      // Keep turn on hit
+      // Hit keeps turn
     } else {
-      // Miss -> switch turn
-      this.turn = targetKey;
+      // Miss: if still in salvo bonus shot, stay on shooter, else switch turn
+      if (!inSalvo) {
+        this.turn = targetKey;
+      } else {
+        this.addChatMessage(null, `⚡ Salwa flagowa: ${shooter.name} oddaje drugi strzał!`);
+      }
     }
 
     return {
@@ -325,6 +384,13 @@ class GameRoom {
     const enemyKey = forPlayerKey === 'p1' ? 'p2' : 'p1';
     const enemy = this.players[enemyKey];
 
+    // Check if my flagship is damaged
+    let myFlagshipDamaged = false;
+    if (me?.ships && me.ships.length > 0) {
+      const flagship = [...me.ships].sort((a, b) => b.size - a.size)[0];
+      myFlagshipDamaged = flagship ? flagship.cells.some(c => c.hit) : false;
+    }
+
     return {
       roomId: this.id,
       boardSize: this.boardSize,
@@ -346,10 +412,14 @@ class GameRoom {
         ready: me.ready,
         color: me.color || 'blue',
         ships: me.ships,
-        mines: me.mines, // show my own placed mines
+        mines: me.mines,
         shotsGrid: me.shotsGrid,
         stats: me.stats,
-        reconUsed: me.reconUsed
+        reconUsed: me.reconUsed,
+        sonarUsed: me.sonarUsed,
+        salvoUsed: me.salvoUsed,
+        salvoRemainingShots: me.salvoRemainingShots,
+        flagshipDamaged: myFlagshipDamaged
       } : null,
       enemy: enemy ? {
         key: enemy.key,
@@ -362,7 +432,9 @@ class GameRoom {
         shotsGrid: enemy.shotsGrid,
         stats: { hits: enemy.stats.hits, shots: enemy.stats.shots },
         totalShipsRemaining: (enemy.ships || []).filter(s => !s.sunk).length,
-        reconUsed: enemy.reconUsed
+        reconUsed: enemy.reconUsed,
+        sonarUsed: enemy.sonarUsed,
+        salvoUsed: enemy.salvoUsed
       } : null,
       chat: this.chat
     };
