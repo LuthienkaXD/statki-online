@@ -538,8 +538,8 @@ io.on('connection', (socket) => {
           if (botResult && botResult.success) {
             broadcastRoomState(room);
 
-            // If bot hit a ship, bot gets another turn! Continue bot shooting
-            if (botResult.shotResult.hit && !botResult.shotResult.allSunk && room.turn === 'p2') {
+            // If bot hit a ship OR bot has bonus turn from mine, bot continues shooting
+            if (!botResult.shotResult.allSunk && room.turn === 'p2') {
               runBotTurn();
             }
           }

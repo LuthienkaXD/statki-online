@@ -62,7 +62,8 @@ class GameRoom {
         reconUsed: false,
         sonarUsed: false,
         salvoUsed: false,
-        salvoRemainingShots: 0
+        salvoRemainingShots: 0,
+        bonusTurns: 0
       };
       this.status = 'placement';
     }
@@ -84,7 +85,8 @@ class GameRoom {
       reconUsed: false,
       sonarUsed: false,
       salvoUsed: false,
-      salvoRemainingShots: 0
+      salvoRemainingShots: 0,
+      bonusTurns: 0
     };
 
     if (!this.players.p1) {
@@ -345,8 +347,10 @@ class GameRoom {
     }
 
     if (shotResult.isMine) {
-      this.addChatMessage(null, `💥 BOOM! ${shooter.name} wpłynął na MINĘ MORSKĄ i traci turę!`);
+      this.addChatMessage(null, `💥 BOOM! ${shooter.name} wpłynął na MINĘ MORSKĄ! ${target.name} otrzymuje 2 ruchy!`);
       shooter.salvoRemainingShots = 0;
+      shooter.bonusTurns = 0;
+      target.bonusTurns = 1; // 1 standard turn + 1 bonus turn = 2 turns guaranteed!
       this.turn = targetKey;
     } else if (shotResult.hit) {
       if (shotResult.allSunk) {
@@ -360,10 +364,14 @@ class GameRoom {
           turns: this.turnsCount
         });
       }
-      // Hit keeps turn
+      // Hit keeps turn naturally
     } else {
-      // Miss: if still in salvo bonus shot, stay on shooter, else switch turn
-      if (!inSalvo) {
+      // Miss: check if shooter still has bonus turn (e.g. from enemy hitting mine)
+      if (shooter.bonusTurns > 0) {
+        shooter.bonusTurns--;
+        this.addChatMessage(null, `🎯 Dodatkowy ruch za minę: ${shooter.name} wykonuje swój drugi ruch!`);
+        // Stay on shooter's turn
+      } else if (!inSalvo) {
         this.turn = targetKey;
       } else {
         this.addChatMessage(null, `⚡ Salwa flagowa: ${shooter.name} oddaje drugi strzał!`);
@@ -455,6 +463,7 @@ class GameRoom {
         sonarUsed: me.sonarUsed,
         salvoUsed: me.salvoUsed,
         salvoRemainingShots: me.salvoRemainingShots,
+        bonusTurns: me.bonusTurns,
         flagshipDamaged: myFlagshipDamaged
       } : null,
       enemy: enemy ? {

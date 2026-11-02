@@ -63,16 +63,39 @@ export default function GameView({
     sunkCounts[key] = (sunkCounts[key] || 0) + 1;
   });
 
-  const enemyFleetStatus = enemyRequiredFleet.map(def => {
-    const key = `${def.size}_${def.shape || 'line'}`;
-    const sunkCount = Math.min(def.count, sunkCounts[key] || 0);
-    return {
-      ...def,
-      totalCount: def.count,
-      sunkCount,
-      remainingCount: def.count - sunkCount
-    };
+  const enemyFleetStatus = enemyRequiredFleet
+    .map(def => {
+      const key = `${def.size}_${def.shape || 'line'}`;
+      const sunkCount = Math.min(def.count, sunkCounts[key] || 0);
+      return {
+        ...def,
+        totalCount: def.count,
+        sunkCount,
+        remainingCount: def.count - sunkCount
+      };
+    })
+    .filter(ship => ship.remainingCount > 0); // Hide completely sunk ship types!
+
+  // Compute my fleet remaining ships
+  const mySunkShips = (me?.ships || []).filter(s => s.sunk);
+  const mySunkCounts = {};
+  mySunkShips.forEach(s => {
+    const key = `${s.size}_${s.shape || 'line'}`;
+    mySunkCounts[key] = (mySunkCounts[key] || 0) + 1;
   });
+
+  const myFleetStatus = enemyRequiredFleet
+    .map(def => {
+      const key = `${def.size}_${def.shape || 'line'}`;
+      const sunkCount = Math.min(def.count, mySunkCounts[key] || 0);
+      return {
+        ...def,
+        totalCount: def.count,
+        sunkCount,
+        remainingCount: def.count - sunkCount
+      };
+    })
+    .filter(ship => ship.remainingCount > 0);
 
   // Load chat dictionary presets
   useEffect(() => {
@@ -426,6 +449,61 @@ export default function GameView({
               ))}
             </div>
           </div>
+
+          {/* Under Your Board: Your Remaining Ships */}
+          <div className="w-full mt-3 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold font-chakra uppercase tracking-wider text-slate-700 flex items-center space-x-1">
+                <Shield className="w-3.5 h-3.5 text-blue-600" />
+                <span>Pozostałe Twoje statki:</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">
+                Pływające: <strong>{myFleetStatus.reduce((acc, curr) => acc + curr.remainingCount, 0)}</strong>
+              </span>
+            </div>
+
+            {myFleetStatus.length === 0 ? (
+              <div className="text-center py-2 text-xs text-rose-600 font-semibold bg-rose-50 rounded-xl">
+                Wszystkie Twoje statki zostały zatopione!
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 w-full">
+                {myFleetStatus.map(ship => (
+                  <div
+                    key={ship.id}
+                    className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-2">
+                      {ship.shape === 'L' ? (
+                        <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-amber-50 rounded border border-amber-300">
+                          <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
+                          <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
+                          <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
+                          <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
+                          <div className="w-2 h-2 opacity-0"></div>
+                          <div className="w-2 h-2 opacity-0"></div>
+                        </div>
+                      ) : (
+                        <div className="flex space-x-0.5">
+                          {Array.from({ length: ship.size }).map((_, i) => (
+                            <div key={i} className="w-2 h-3 rounded-xs bg-blue-600" />
+                          ))}
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-[11px] font-semibold text-slate-800 leading-tight">
+                          {ship.name}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-blue-700 border border-slate-200">
+                      {ship.remainingCount} szt.
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Center: Enemy Board */}
@@ -480,33 +558,32 @@ export default function GameView({
             <div className="w-full mt-3 pt-3 border-t border-slate-200">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold font-chakra uppercase tracking-wider text-slate-700 flex items-center space-x-1">
-                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Statki na planszy wroga:</span>
+                  <Shield className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Statki do zatopienia u wroga:</span>
                 </span>
                 <span className="text-[10px] font-mono text-slate-500">
-                  Pozostało pływających: <strong>{enemy?.totalShipsRemaining ?? (enemyRequiredFleet.reduce((a, b) => a + b.count, 0) - (enemy?.sunkShips?.length || 0))}</strong>
+                  Pozostało: <strong>{enemyFleetStatus.reduce((acc, curr) => acc + curr.remainingCount, 0)}</strong>
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full">
-                {enemyFleetStatus.map(ship => {
-                  const isAllSunk = ship.remainingCount === 0;
-                  return (
+              {enemyFleetStatus.length === 0 ? (
+                <div className="text-center py-2 text-xs text-emerald-600 font-semibold bg-emerald-50 rounded-xl">
+                  Wszystkie statki przeciwnika zostały zatopione!
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full">
+                  {enemyFleetStatus.map(ship => (
                     <div
                       key={ship.id}
-                      className={`p-2 rounded-xl border flex items-center justify-between transition-all ${
-                        isAllSunk
-                          ? 'bg-rose-50/60 border-rose-200 opacity-60'
-                          : 'bg-slate-50 border-slate-200'
-                      }`}
+                      className="p-2 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between transition-all"
                     >
                       <div className="flex items-center space-x-2">
                         {ship.shape === 'L' ? (
                           <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-amber-50 rounded border border-amber-300">
-                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
-                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
-                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
-                            <div className={`w-2 h-2 rounded-xs ${isAllSunk ? 'bg-rose-400' : 'bg-slate-700'}`}></div>
+                            <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
+                            <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
+                            <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
+                            <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
                             <div className="w-2 h-2 opacity-0"></div>
                             <div className="w-2 h-2 opacity-0"></div>
                           </div>
@@ -515,15 +592,13 @@ export default function GameView({
                             {Array.from({ length: ship.size }).map((_, i) => (
                               <div
                                 key={i}
-                                className={`w-2 h-3.5 rounded-xs ${
-                                  isAllSunk ? 'bg-rose-300' : 'bg-slate-700'
-                                }`}
+                                className="w-2 h-3.5 rounded-xs bg-slate-700"
                               />
                             ))}
                           </div>
                         )}
                         <div>
-                          <div className={`text-[11px] font-semibold leading-tight ${isAllSunk ? 'line-through text-rose-700' : 'text-slate-800'}`}>
+                          <div className="text-[11px] font-semibold leading-tight text-slate-800">
                             {ship.name}
                           </div>
                           <div className="text-[9px] text-slate-500 font-mono">
@@ -533,18 +608,14 @@ export default function GameView({
                       </div>
 
                       <div className="text-right">
-                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                          isAllSunk
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-white text-slate-700 border border-slate-200'
-                        }`}>
-                          {ship.sunkCount}/{ship.totalCount} zatop.
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
+                          {ship.remainingCount} szt.
                         </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
