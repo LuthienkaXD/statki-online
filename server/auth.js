@@ -28,7 +28,7 @@ function verifyToken(token) {
   }
 }
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Brak autoryzacji' });
@@ -40,7 +40,7 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Nieprawidłowy lub wygasły token' });
   }
 
-  req.user = getUserById(payload.id);
+  req.user = await getUserById(payload.id);
   if (!req.user) {
     return res.status(401).json({ error: 'Użytkownik nie istnieje' });
   }

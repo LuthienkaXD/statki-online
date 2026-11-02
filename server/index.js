@@ -3,8 +3,10 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+require('dotenv').config();
 const { GameRoom } = require('./gameRoom');
 const {
+  initDb,
   getUserByUsername,
   createUser,
   getUserById,
@@ -48,68 +50,104 @@ function generateRoomId() {
 // ---------------- REST API ----------------
 
 // Register
-app.post('/api/auth/register', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || username.trim().length < 3) {
-    return res.status(400).json({ error: 'Nazwa użytkownika musi mieć min. 3 znaki.' });
-  }
-  if (!password || password.length < 4) {
-    return res.status(400).json({ error: 'Hasło musi mieć min. 4 znaki.' });
-  }
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || username.trim().length < 3) {
+      return res.status(400).json({ error: 'Nazwa użytkownika musi mieć min. 3 znaki.' });
+    }
+    if (!password || password.length < 4) {
+      return res.status(400).json({ error: 'Hasło musi mieć min. 4 znaki.' });
+    }
 
-  const existing = getUserByUsername(username.trim());
-  if (existing) {
-    return res.status(400).json({ error: 'Użytkownik o takiej nazwie już istnieje.' });
-  }
+    const existing = await getUserByUsername(username.trim());
+    if (existing) {
+      return res.status(400).json({ error: 'Użytkownik o takiej nazwie już istnieje.' });
+    }
 
-  const user = createUser(username.trim(), hashPassword(password));
-  const token = generateToken(user);
-  res.json({ token, user: { id: user.id, username: user.username, wins: user.wins, losses: user.losses } });
+    const user = await createUser(username.trim(), hashPassword(password));
+    const token = generateToken(user);
+    res.json({ token, user: { id: user.id, username: user.username, wins: user.wins, losses: user.losses } });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ error: 'Błąd serwera podczas rejestracji.' });
+  }
 });
 
 // Login
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Podaj login i hasło.' });
-  }
-
-  const user = getUserByUsername(username.trim());
-  if (!user || !verifyPassword(password, user.password_hash)) {
-    return res.status(400).json({ error: 'Nieprawidłowa nazwa użytkownika lub hasło.' });
-  }
-
-  const token = generateToken(user);
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      wins: user.wins,
-      losses: user.losses,
-      hits: user.hits,
-      shots: user.shots
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Podaj login i hasło.' });
     }
-  });
+
+    const user = await getUserByUsername(username.trim());
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      return res.status(400).json({ error: 'Nieprawidłowa nazwa użytkownika lub hasło.' });
+    }
+
+    const token = generateToken(user);
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        wins: user.wins,
+        losses: user.losses,
+        hits: user.hits,
+        shots: user.shots
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Błąd serwera podczas logowania.' });
+  }
 });
 
 // Current user profile
-app.get('/api/auth/me', authMiddleware, (req, res) => {
-  const recent = getRecentMatches(req.user.id, 5);
-  res.json({ user: req.user, recentMatches: recent });
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const recent = await getRecentMatches(req.user.id, 10);
+    res.json({ user: req.user, recentMatches: recent });
+  } catch (err) {
+    console.error('Error fetching me profile:', err);
+    res.status(500).json({ error: 'Błąd pobierania profilu.' });
+  }
+});
+
+// Match history
+app.get('/api/history', authMiddleware, async (req, res) => {
+  try {
+    const history = await getRecentMatches(req.user.id, 30);
+    res.json({ history });
+  } catch (err) {
+    console.error('Error fetching history:', err);
+    res.status(500).json({ error: 'Błąd pobierania historii gier.' });
+  }
 });
 
 // Daily leaderboard
-app.get('/api/leaderboard/daily', (req, res) => {
-  const date = req.query.date || new Date().toISOString().slice(0, 10);
-  const leaderboard = getDailyLeaderboard(date);
-  res.json({ date, leaderboard });
+app.get('/api/leaderboard/daily', async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const leaderboard = await getDailyLeaderboard(date);
+    res.json({ date, leaderboard });
+  } catch (err) {
+    console.error('Error fetching daily leaderboard:', err);
+    res.status(500).json({ error: 'Błąd pobierania rankingu.' });
+  }
 });
 
 // All-time leaderboard
-app.get('/api/leaderboard/all-time', (req, res) => {
-  const leaderboard = getAllTimeLeaderboard();
-  res.json({ leaderboard });
+app.get('/api/leaderboard/all-time', async (req, res) => {
+  try {
+    const leaderboard = await getAllTimeLeaderboard();
+    res.json({ leaderboard });
+  } catch (err) {
+    console.error('Error fetching all-time leaderboard:', err);
+    res.status(500).json({ error: 'Błąd pobierania rankingu ogólnego.' });
+  }
 });
 
 // Check if room exists
@@ -125,43 +163,6 @@ app.get('/api/rooms/:id', (req, res) => {
     p1Name: room.players.p1?.name,
     p2Name: room.players.p2?.name
   });
-});
-
-// Active multiplayer rooms list (max 2 players per room)
-function getLobbyRooms() {
-  const rooms = [];
-  for (const [id, room] of activeRooms.entries()) {
-    if (room.isBotGame) continue;
-    const p1 = room.players.p1;
-    const p2 = room.players.p2;
-    const count = (p1 ? 1 : 0) + (p2 ? 1 : 0);
-    if (count === 0) continue;
-
-    rooms.push({
-      id: room.id,
-      hostName: p1 ? p1.name : 'Kapitan',
-      playerCount: count,
-      maxPlayers: 2,
-      status: room.status,
-      canJoin: count < 2 && (room.status === 'waiting' || room.status === 'placement'),
-      createdAt: room.createdAt
-    });
-  }
-  rooms.sort((a, b) => {
-    if (a.canJoin && !b.canJoin) return -1;
-    if (!a.canJoin && b.canJoin) return 1;
-    return b.createdAt - a.createdAt;
-  });
-  return rooms;
-}
-
-function broadcastLobbyRooms() {
-  io.emit('rooms_update', getLobbyRooms());
-}
-
-// GET /api/rooms - returns all active multiplayer rooms
-app.get('/api/rooms', (req, res) => {
-  res.json({ rooms: getLobbyRooms() });
 });
 
 // Serve frontend build when available
@@ -184,11 +185,6 @@ io.on('connection', (socket) => {
   let currentRoomId = null;
   let playerKey = null;
 
-  // Request rooms list
-  socket.on('request_rooms', () => {
-    socket.emit('rooms_update', getLobbyRooms());
-  });
-
   // Create Room
   socket.on('create_room', ({ isBot = false, user = null }) => {
     let roomId = generateRoomId();
@@ -204,7 +200,6 @@ io.on('connection', (socket) => {
 
     socket.emit('room_created', { roomId, playerKey, state: room.getClientState(playerKey) });
     broadcastRoomState(room);
-    broadcastLobbyRooms();
   });
 
   // Join Room
@@ -219,7 +214,7 @@ io.on('connection', (socket) => {
 
     playerKey = room.join(socket.id, user);
     if (!playerKey) {
-      socket.emit('join_error', { message: 'Pokój jest już pełny (maksymalnie 2 graczy).' });
+      socket.emit('join_error', { message: 'Pokój jest już pełny.' });
       return;
     }
 
@@ -228,7 +223,6 @@ io.on('connection', (socket) => {
 
     socket.emit('room_joined', { roomId: cleanId, playerKey, state: room.getClientState(playerKey) });
     broadcastRoomState(room);
-    broadcastLobbyRooms();
   });
 
   // Place Ships & Set Ready
@@ -331,28 +325,6 @@ io.on('connection', (socket) => {
 
     room.addChatMessage(null, 'Nowa bitwa! Rozstawcie swoje statki.');
     broadcastRoomState(room);
-    broadcastLobbyRooms();
-  });
-
-  // Leave Room
-  socket.on('leave_room', () => {
-    if (currentRoomId) {
-      socket.leave(currentRoomId);
-      const room = activeRooms.get(currentRoomId);
-      if (room) {
-        if (room.status === 'waiting' || (room.status === 'placement' && !room.players.p2)) {
-          activeRooms.delete(currentRoomId);
-        } else if (playerKey) {
-          room.players[playerKey] = null;
-          if (!room.players.p1 && !room.players.p2) {
-            activeRooms.delete(currentRoomId);
-          }
-        }
-        broadcastLobbyRooms();
-      }
-      currentRoomId = null;
-      playerKey = null;
-    }
   });
 
   // Disconnect
@@ -370,15 +342,7 @@ io.on('connection', (socket) => {
             room.addChatMessage(null, `${room.players[playerKey]?.name || 'Gracz'} opuścił grę.`);
             broadcastRoomState(room);
           }
-        } else if (room.status === 'waiting') {
-          activeRooms.delete(currentRoomId);
-        } else if (playerKey) {
-          room.players[playerKey] = null;
-          if (!room.players.p1 && !room.players.p2) {
-            activeRooms.delete(currentRoomId);
-          }
         }
-        broadcastLobbyRooms();
       }
     }
   });
@@ -389,6 +353,11 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
+  try {
+    await initDb();
+  } catch (err) {
+    console.error('Failed to initialize database tables:', err);
+  }
   console.log(`Battleship Server running on http://localhost:${PORT}`);
 });
