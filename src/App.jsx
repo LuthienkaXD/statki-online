@@ -21,6 +21,7 @@ export default function App() {
   const [errorNotice, setErrorNotice] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [copied, setCopied] = useState(false);
+  const [openRooms, setOpenRooms] = useState([]);
 
   // Modals
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -40,6 +41,14 @@ export default function App() {
       .then(res => res.json())
       .then(data => {
         if (data && data.announcement) setAnnouncement(data.announcement);
+      })
+      .catch(() => {});
+
+    // Fetch initial open rooms
+    fetch('/api/rooms')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.rooms) setOpenRooms(data.rooms);
       })
       .catch(() => {});
 
@@ -69,6 +78,10 @@ export default function App() {
   // Socket event listeners
   useEffect(() => {
     if (!socket) return;
+
+    socket.on('open_rooms_update', (rooms) => {
+      setOpenRooms(rooms || []);
+    });
 
     socket.on('room_created', ({ roomId, playerKey: pKey, state }) => {
       setCurrentRoomId(roomId);
@@ -127,6 +140,7 @@ export default function App() {
     });
 
     return () => {
+      socket.off('open_rooms_update');
       socket.off('room_created');
       socket.off('room_joined');
       socket.off('room_update');
@@ -272,6 +286,7 @@ export default function App() {
           <LobbyView
             onCreateRoom={handleCreateRoom}
             onJoinRoom={handleJoinRoom}
+            openRooms={openRooms}
             user={user}
             onOpenAuth={() => setIsAuthOpen(true)}
             onOpenLeaderboard={() => setIsLeaderboardOpen(true)}

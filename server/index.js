@@ -313,6 +313,31 @@ app.post('/api/admin/settings', authMiddleware, adminMiddleware, async (req, res
   }
 });
 
+function getOpenRooms() {
+  const openRooms = [];
+  for (const [id, room] of activeRooms.entries()) {
+    if (!room.isBotGame && room.status === 'waiting' && room.players.p1 && !room.players.p2) {
+      openRooms.push({
+        id: room.id,
+        hostName: room.players.p1.name,
+        boardSize: room.boardSize || 10,
+        options: room.options,
+        createdAt: room.createdAt
+      });
+    }
+  }
+  return openRooms;
+}
+
+function broadcastOpenRooms() {
+  io.emit('open_rooms_update', getOpenRooms());
+}
+
+// Get list of open joinable rooms
+app.get('/api/rooms', (req, res) => {
+  res.json({ rooms: getOpenRooms() });
+});
+
 // Check if room exists
 app.get('/api/rooms/:id', (req, res) => {
   const room = activeRooms.get(req.params.id.toUpperCase());
@@ -376,6 +401,7 @@ io.on('connection', (socket) => {
 
     socket.emit('room_created', { roomId, playerKey, state: room.getClientState(playerKey) });
     broadcastRoomState(room);
+    broadcastOpenRooms();
   });
 
   // Join Room
@@ -399,6 +425,7 @@ io.on('connection', (socket) => {
 
     socket.emit('room_joined', { roomId: cleanId, playerKey, state: room.getClientState(playerKey) });
     broadcastRoomState(room);
+    broadcastOpenRooms();
   });
 
   // Place Ships & Set Ready
@@ -583,6 +610,10 @@ io.on('connection', (socket) => {
             room.addChatMessage(null, `${room.players[playerKey]?.name || 'Gracz'} opuścił grę.`);
             broadcastRoomState(room);
           }
+        } else if (room.status === 'waiting') {
+          // If host left waiting room, clean it up
+          activeRooms.delete(currentRoomId);
+          broadcastOpenRooms();
         }
       }
     }

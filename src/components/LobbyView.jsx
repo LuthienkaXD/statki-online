@@ -10,13 +10,17 @@ import {
   Layers,
   Radio,
   Zap,
-  Lock
+  Lock,
+  Globe,
+  Clock,
+  Play
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export default function LobbyView({
   onCreateRoom,
   onJoinRoom,
+  openRooms = [],
   user,
   onOpenAuth
 }) {
@@ -368,6 +372,113 @@ export default function LobbyView({
           </div>
         </div>
 
+      </div>
+
+      {/* Open Rooms List (Public Lobby) */}
+      <div className="w-full bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-8 shadow-sm">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+              <Globe className="w-4 h-4 animate-spin-slow" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold font-chakra text-slate-900 leading-tight">
+                Otwarte Pokoje do Gry
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Pokoje utworzone przez innych graczy, oczekujące na przeciwnika
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              {openRooms.length} {openRooms.length === 1 ? 'pokój' : openRooms.length > 1 && openRooms.length < 5 ? 'pokoje' : 'pokoi'}
+            </span>
+          </div>
+        </div>
+
+        {openRooms.length === 0 ? (
+          <div className="py-8 text-center px-4 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+            <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-700">Brak oczekujących graczy w tej chwili</p>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              Stwórz swój pokój powyżej klikając „Stwórz Nowy Pokój” lub zagraj szybki trening z komputerem!
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {openRooms.map((room) => {
+              const opts = room.options || {};
+              return (
+                <div
+                  key={room.id}
+                  className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col justify-between"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-sm sm:text-base text-slate-900 font-chakra">
+                          {room.hostName || 'Kapitan'}
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
+                          #{room.id}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center space-x-2">
+                        <span>Plansza: <strong className="text-slate-700">{room.boardSize}×{room.boardSize}</strong></span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        onJoinRoom(room.id);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-chakra font-bold text-xs flex items-center space-x-1.5 shadow-xs hover:shadow transition cursor-pointer"
+                    >
+                      <span>Dołącz</span>
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                    </button>
+                  </div>
+
+                  {/* Active modifiers chips */}
+                  <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200/60">
+                    <span className="text-[10px] font-medium text-slate-400 self-center mr-1">Zasady:</span>
+                    {opts.mines && (
+                      <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-semibold">
+                        <Bomb className="w-2.5 h-2.5 text-rose-500" />
+                        <span>Miny</span>
+                      </span>
+                    )}
+                    {opts.reconPlane && (
+                      <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                        <Plane className="w-2.5 h-2.5 text-blue-500" />
+                        <span>Radar</span>
+                      </span>
+                    )}
+                    {opts.sonar && (
+                      <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 font-semibold">
+                        <Radio className="w-2.5 h-2.5 text-teal-500" />
+                        <span>Sonar</span>
+                      </span>
+                    )}
+                    {opts.flagshipSalvo && (
+                      <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                        <Zap className="w-2.5 h-2.5 text-amber-500" />
+                        <span>Salwa</span>
+                      </span>
+                    )}
+                    {!opts.mines && !opts.reconPlane && !opts.sonar && !opts.flagshipSalvo && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 font-medium">
+                        Czysta bitwa klasyczna
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
     </div>
