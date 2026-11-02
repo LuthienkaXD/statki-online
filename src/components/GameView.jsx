@@ -465,26 +465,29 @@ export default function GameView({
                 Wszystkie Twoje statki zostały zatopione!
               </div>
             ) : (
-              <div className="flex flex-wrap gap-1.5 w-full">
+              <div className="flex flex-wrap gap-2 w-full">
                 {mySurvivingShips.map(ship => (
                   <div
                     key={ship.uniqueId}
-                    className="p-1 rounded-lg border border-slate-200 bg-slate-50 flex items-center space-x-1.5 shadow-2xs"
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white flex items-center shadow-xs"
                     title={ship.name}
                   >
                     {ship.shape === 'L' ? (
-                      <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-amber-50 rounded border border-amber-300">
-                        <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
-                        <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
-                        <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
-                        <div className="w-2 h-2 rounded-xs bg-blue-600"></div>
-                        <div className="w-2 h-2 opacity-0"></div>
-                        <div className="w-2 h-2 opacity-0"></div>
+                      <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-blue-50/70 rounded border border-blue-200">
+                        <div className="w-3.5 h-3.5 rounded-xs bg-blue-600 border border-blue-700"></div>
+                        <div className="w-3.5 h-3.5 rounded-xs bg-blue-600 border border-blue-700"></div>
+                        <div className="w-3.5 h-3.5 rounded-xs bg-blue-600 border border-blue-700"></div>
+                        <div className="w-3.5 h-3.5 rounded-xs bg-blue-600 border border-blue-700"></div>
+                        <div className="w-3.5 h-3.5 opacity-0"></div>
+                        <div className="w-3.5 h-3.5 opacity-0"></div>
                       </div>
                     ) : (
                       <div className="flex space-x-0.5">
                         {Array.from({ length: ship.size }).map((_, i) => (
-                          <div key={i} className="w-2 h-3.5 rounded-xs bg-blue-600" />
+                          <div
+                            key={i}
+                            className="w-3.5 h-3.5 rounded-xs bg-blue-600 border border-blue-700 shadow-2xs"
+                          />
                         ))}
                       </div>
                     )}
@@ -560,28 +563,28 @@ export default function GameView({
                   Wszystkie statki przeciwnika zostały zatopione!
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-1.5 w-full">
+                <div className="flex flex-wrap gap-2 w-full">
                   {enemySurvivingShips.map(ship => (
                     <div
                       key={ship.uniqueId}
-                      className="p-1 rounded-lg border border-slate-200 bg-slate-50 flex items-center space-x-1.5 shadow-2xs hover:bg-slate-100 transition-all"
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white flex items-center shadow-xs hover:border-slate-400 transition-all"
                       title={ship.name}
                     >
                       {ship.shape === 'L' ? (
-                        <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-amber-50 rounded border border-amber-300">
-                          <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
-                          <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
-                          <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
-                          <div className="w-2 h-2 rounded-xs bg-slate-700"></div>
-                          <div className="w-2 h-2 opacity-0"></div>
-                          <div className="w-2 h-2 opacity-0"></div>
+                        <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-slate-100 rounded border border-slate-300">
+                          <div className="w-3.5 h-3.5 rounded-xs bg-slate-700 border border-slate-800"></div>
+                          <div className="w-3.5 h-3.5 rounded-xs bg-slate-700 border border-slate-800"></div>
+                          <div className="w-3.5 h-3.5 rounded-xs bg-slate-700 border border-slate-800"></div>
+                          <div className="w-3.5 h-3.5 rounded-xs bg-slate-700 border border-slate-800"></div>
+                          <div className="w-3.5 h-3.5 opacity-0"></div>
+                          <div className="w-3.5 h-3.5 opacity-0"></div>
                         </div>
                       ) : (
                         <div className="flex space-x-0.5">
                           {Array.from({ length: ship.size }).map((_, i) => (
                             <div
                               key={i}
-                              className="w-2 h-3.5 rounded-xs bg-slate-700"
+                              className="w-3.5 h-3.5 rounded-xs bg-slate-700 border border-slate-800 shadow-2xs"
                             />
                           ))}
                         </div>
