@@ -574,10 +574,10 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
               className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs transition cursor-pointer border ${
                 mineMode
                   ? 'bg-rose-600 text-white border-rose-600 ring-4 ring-rose-400/40 animate-pulse'
-                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                  : 'bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-600/50'
               }`}
             >
-              <Bomb className="w-4 h-4 text-rose-600" />
+              <Bomb className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               <span>
                 {mineMode ? 'Zakończ rozstawianie min' : `Rozstaw miny (${placedMines.length}/${maxMines || 2})`}
               </span>
@@ -650,14 +650,14 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-lg bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-600 shadow-2xs">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-500/50 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-2xs">
                     <Bomb className="w-5 h-5 animate-bounce" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-rose-950 flex items-center space-x-1.5">
+                    <div className="text-xs font-bold text-rose-950 dark:text-rose-300 flex items-center space-x-1.5">
                       <span>Miny Morskie (Przeciągnij)</span>
                     </div>
-                    <div className="text-[10px] text-slate-500 font-mono">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                       Przeciągnij na wolną wodę lub kliknij pole
                     </div>
                   </div>
@@ -666,8 +666,8 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                 <div className="text-right">
                   <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${
                     placedMines.length >= maxMines
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-rose-100 text-rose-800'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border dark:border-emerald-500/40'
+                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 dark:border dark:border-rose-500/40'
                   }`}>
                     {placedMines.length} / {maxMines}
                   </span>
