@@ -111,8 +111,9 @@
 
 .dark .text-indigo-700,
 .dark .text-indigo-800,
-.dark .text-indigo-900 {
-  color: #a5b4fc !important;
+.dark .text-indigo-900,
+.dark .text-indigo-950 {
+  color: #c7d2fe !important;
 }
 
 .dark .text-emerald-700,

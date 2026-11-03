@@ -101,20 +101,20 @@ export default function RpsMinigame({ rps, onMakeChoice, onRpsRematch, isBotGame
       </div>
 
       {/* Status Bar & Tie Rematch Button */}
-      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm space-y-3">
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm space-y-3">
         {resultText ? (
-          <div className="font-bold text-indigo-950 font-chakra text-sm sm:text-base">
+          <div className="font-bold text-indigo-950 dark:text-indigo-200 font-chakra text-sm sm:text-base">
             {resultText}
           </div>
         ) : myChoice ? (
-          <div className="text-slate-600 flex items-center justify-center space-x-2">
+          <div className="text-slate-600 dark:text-slate-300 flex items-center justify-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
             <span>
-              Twój wybór: <strong>{myChoice.toUpperCase()}</strong>. {enemyChosen ? 'Obliczanie wyniku...' : `Czekamy na wybór ${enemyName || 'rywala'}...`}
+              Twój wybór: <strong className="text-slate-900 dark:text-white">{myChoice.toUpperCase()}</strong>. {enemyChosen ? 'Obliczanie wyniku...' : `Czekamy na wybór ${enemyName || 'rywala'}...`}
             </span>
           </div>
         ) : (
-          <div className="text-slate-500 font-medium">
+          <div className="text-slate-500 dark:text-slate-300 font-medium">
             Wybierz jeden z symboli powyżej!
           </div>
         )}
