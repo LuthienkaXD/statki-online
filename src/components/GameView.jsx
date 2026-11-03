@@ -23,6 +23,7 @@ import {
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
 import SurrenderAnimation from './SurrenderAnimation';
+import SailorsMatchAnimation from './SailorsMatchAnimation';
 
 export default function GameView({
   gameState,
@@ -509,6 +510,18 @@ export default function GameView({
       {/* Main Game Arena */}
       <div className="w-full flex flex-col xl:flex-row gap-5 items-start justify-center relative">
         
+        {/* Leftmost: Animated Sailors Match (Pojedynek Kapitanów) */}
+        {!isGameOver && (
+          <SailorsMatchAnimation
+            turn={turn}
+            meKey={me?.key || 'p1'}
+            myFleetColor={myFleetStyle.hex}
+            enemyFleetColor={enemyFleetStyle.hex}
+            status={status}
+            turnsCount={gameState.turnsCount || 0}
+          />
+        )}
+
         {/* Smutny Kapitan Pixel Art z Białą Flagą (widoczny dla obu graczy po zakończeniu bitwy na wysokości 5, 6 wiersza plansz) */}
         {isGameOver && showSurrenderAnim && (
           <SurrenderAnimation
