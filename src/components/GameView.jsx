@@ -40,6 +40,7 @@ export default function GameView({
   const [freeTextAllowed, setFreeTextAllowed] = useState(true);
   const [reconActive, setReconActive] = useState(false);
   const [sonarMode, setSonarMode] = useState(null); // null | 'row' | 'col'
+  const [hoveredCell, setHoveredCell] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showRemainingShips, setShowRemainingShips] = useState(true);
   const [showSurrenderAnim, setShowSurrenderAnim] = useState(true);
@@ -165,6 +166,29 @@ export default function GameView({
     }
   }, [isGameOver, isWinner]);
 
+  // Keyboard shortcut for Sonar: 'W' for row, 'K' for column
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if typing in input/textarea or modal
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+      if (!isMyTurn || !options.sonar || me?.sonarUsed || isGameOver) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'w') {
+        sounds.playClick();
+        setSonarMode(prev => prev === 'row' ? null : 'row');
+        setReconActive(false);
+      } else if (key === 'k') {
+        sounds.playClick();
+        setSonarMode(prev => prev === 'col' ? null : 'col');
+        setReconActive(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMyTurn, options.sonar, me?.sonarUsed, isGameOver]);
+
   const handleShoot = (r, c) => {
     if (!isMyTurn || isGameOver) return;
 
@@ -252,6 +276,11 @@ export default function GameView({
     const isUnhitShipOnGameOver = isGameOver && enemy?.allShips?.some(s => !s.sunk && s.cells.some(cell => cell.r === r && cell.c === c && !cell.hit));
     const isEnemyMineOnGameOver = isGameOver && enemy?.allMines?.some(m => m.r === r && m.c === c);
 
+    const isHoveredSonar = isMyTurn && !isGameOver && sonarMode && hoveredCell && (
+      (sonarMode === 'row' && hoveredCell.r === r) ||
+      (sonarMode === 'col' && hoveredCell.c === c)
+    );
+
     let cellClass = 'bg-slate-50 border-slate-300 hover:bg-slate-200/80';
     let inlineStyle = {};
 
@@ -269,12 +298,18 @@ export default function GameView({
       };
     }
 
+    if (isHoveredSonar && shot !== 'hit') {
+      cellClass += ' ring-2 ring-teal-400 bg-teal-100/70 border-teal-500';
+    }
+
     const cellPixelSize = Math.round(26 * (boardZoom / 100));
 
     return (
       <button
         key={`${r}-${c}`}
         onClick={() => handleShoot(r, c)}
+        onMouseEnter={() => setHoveredCell({ r, c })}
+        onMouseLeave={() => setHoveredCell(null)}
         disabled={!isMyTurn || isGameOver || (!reconActive && !sonarMode && shot !== null && shot !== undefined)}
         style={{
           ...inlineStyle,
@@ -378,22 +413,44 @@ export default function GameView({
 
           {/* Sonar Impulse */}
           {isMyTurn && options.sonar && !me?.sonarUsed && !isGameOver && (
-            <div className="relative inline-flex">
+            <div className="inline-flex items-center rounded-xl bg-teal-50 border border-teal-200 p-0.5 shadow-xs">
+              <div className="flex items-center px-2 py-1 space-x-1 text-teal-800 font-bold text-xs">
+                <Radio className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
+                <span className="hidden sm:inline">Sonar:</span>
+              </div>
               <button
+                type="button"
                 onClick={() => {
                   sounds.playClick();
-                  setSonarMode(sonarMode ? null : 'row');
+                  setSonarMode(sonarMode === 'row' ? null : 'row');
                   setReconActive(false);
                 }}
-                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
-                  sonarMode
-                    ? 'bg-teal-600 text-white ring-2 ring-teal-400 animate-pulse'
-                    : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
+                  sonarMode === 'row'
+                    ? 'bg-teal-600 text-white shadow-xs ring-2 ring-teal-400 animate-pulse'
+                    : 'text-teal-700 hover:bg-teal-100/80'
                 }`}
-                title="Wykrywa obecność statku w wybranym wierszu lub kolumnie"
+                title="W - skanuj wiersz (poziomo) [Skrót: W]"
               >
-                <Radio className="w-3.5 h-3.5" />
-                <span>{sonarMode ? (sonarMode === 'row' ? 'Sonar: Wiersz' : 'Sonar: Kolumna') : 'Sonar'}</span>
+                <span className="font-mono bg-teal-200/80 text-teal-950 px-1 py-0.2 rounded text-[10px]">W</span>
+                <span>Wiersz</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  setSonarMode(sonarMode === 'col' ? null : 'col');
+                  setReconActive(false);
+                }}
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
+                  sonarMode === 'col'
+                    ? 'bg-teal-600 text-white shadow-xs ring-2 ring-teal-400 animate-pulse'
+                    : 'text-teal-700 hover:bg-teal-100/80'
+                }`}
+                title="K - skanuj kolumnę (pionowo) [Skrót: K]"
+              >
+                <span className="font-mono bg-teal-200/80 text-teal-950 px-1 py-0.2 rounded text-[10px]">K</span>
+                <span>Kolumna</span>
               </button>
             </div>
           )}
