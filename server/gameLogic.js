@@ -260,7 +260,8 @@ function processShot(ships, shotsGrid, r, c, boardSize = 10, mines = []) {
       }
     }
   } else {
-    // Auto-mark diagonal corners as miss
+    // Auto-mark diagonal corners as miss (skipping cells that belong to this ship, e.g. in L-shaped 3x2 ships)
+    const shipCellSet = new Set(hitShip.cells.map(cell => `${cell.r},${cell.c}`));
     const diagonals = [
       { dr: -1, dc: -1 },
       { dr: -1, dc: 1 },
@@ -270,7 +271,7 @@ function processShot(ships, shotsGrid, r, c, boardSize = 10, mines = []) {
     for (const d of diagonals) {
       const nr = r + d.dr;
       const nc = c + d.dc;
-      if (isValidCoord(nr, nc, boardSize)) {
+      if (isValidCoord(nr, nc, boardSize) && !shipCellSet.has(`${nr},${nc}`)) {
         if (shotsGrid[nr][nc] === null || shotsGrid[nr][nc] === undefined) {
           shotsGrid[nr][nc] = 'miss';
           autoMarked.push({ r: nr, c: nc });
