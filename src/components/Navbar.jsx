@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Anchor, Trophy, Volume2, VolumeX, LogIn, LogOut, Info, Shield, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Anchor, Trophy, Volume2, VolumeX, LogIn, LogOut, Info, Shield, ZoomIn, ZoomOut, RotateCcw, Moon, Sun } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export default function Navbar({
@@ -14,7 +14,9 @@ export default function Navbar({
   boardZoom = 100,
   onZoomIn,
   onZoomOut,
-  onResetZoom
+  onResetZoom,
+  darkMode = false,
+  onToggleDarkMode
 }) {
   const [soundEnabled, setSoundEnabled] = useState(sounds.enabled);
 
@@ -105,6 +107,19 @@ export default function Navbar({
           >
             <Trophy className="w-4 h-4 text-amber-600" />
             <span className="hidden sm:inline font-semibold">Ranking</span>
+          </button>
+
+          {/* Dark / Light Mode Toggle */}
+          <button
+            onClick={() => { sounds.playClick(); onToggleDarkMode(); }}
+            className="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+            title={darkMode ? 'Przełącz na tryb jasny' : 'Przełącz na tryb ciemny'}
+          >
+            {darkMode ? (
+              <Sun className="w-5 h-5 text-amber-400 hover:rotate-90 transition-transform duration-300" />
+            ) : (
+              <Moon className="w-5 h-5 text-slate-600 hover:-rotate-12 transition-transform duration-300" />
+            )}
           </button>
 
           {/* Sound toggle */}

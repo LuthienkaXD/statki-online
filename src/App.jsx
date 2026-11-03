@@ -26,6 +26,25 @@ export default function App() {
     const saved = localStorage.getItem('battleship_zoom');
     return saved ? Math.min(150, Math.max(70, Number(saved))) : 100;
   });
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('battleship_theme');
+    if (saved) return saved === 'dark';
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('battleship_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('battleship_theme', 'light');
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => {
+    setDarkMode(prev => !prev);
+  };
 
   const handleZoomIn = () => {
     setBoardZoom(prev => {
@@ -283,6 +302,8 @@ export default function App() {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetZoom={handleResetZoom}
+        darkMode={darkMode}
+        onToggleDarkMode={toggleDarkMode}
       />
 
       {/* Global Announcement Banner */}
