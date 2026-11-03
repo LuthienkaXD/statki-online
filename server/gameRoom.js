@@ -7,7 +7,7 @@ const {
   getLetters
 } = require('./gameLogic');
 const { BotAI } = require('./botAI');
-const { recordMatch, recordCellHit, recordFirstSunkShip } = require('./db');
+const { recordMatch, recordCellHit, recordFirstSunkShip, recordHitStreak } = require('./db');
 
 class GameRoom {
   constructor(roomId, isBotGame = false, options = {}) {
@@ -66,7 +66,8 @@ class GameRoom {
         sonarUsed: false,
         salvoUsed: false,
         salvoRemainingShots: 0,
-        bonusTurns: 0
+        bonusTurns: 0,
+        currentHitStreak: 0
       };
       this.status = 'placement';
     }
@@ -89,7 +90,8 @@ class GameRoom {
       sonarUsed: false,
       salvoUsed: false,
       salvoRemainingShots: 0,
-      bonusTurns: 0
+      bonusTurns: 0,
+      currentHitStreak: 0
     };
 
     if (!this.players.p1) {
@@ -343,11 +345,22 @@ class GameRoom {
     if (player.salvoUsed) return { error: 'Salwa flagowca była już wykorzystana' };
     if (this.turn !== playerKey) return { error: 'To nie Twoja tura' };
 
-    // Find biggest ship (flagship)
-    const flagship = [...player.ships].sort((a, b) => b.size - a.size)[0];
-    const isDamaged = flagship.cells.some(c => c.hit);
+    // Find flagship:
+    // Na planszach 13x13 i 15x15 okrętem flagowym jest okręt 5-masztowy (5x1).
+    // Na planszy 10x10 okrętem flagowym jest okręt 4-masztowy (4x1).
+    let flagship = null;
+    if (player.ships && player.ships.length > 0) {
+      if (this.boardSize >= 13) {
+        flagship = player.ships.find(s => s.size === 5) || [...player.ships].sort((a, b) => b.size - a.size)[0];
+      } else {
+        flagship = [...player.ships].sort((a, b) => b.size - a.size)[0];
+      }
+    }
+
+    const isDamaged = flagship ? flagship.cells.some(c => c.hit) : false;
     if (isDamaged) {
-      return { error: 'Twój Okręt Flagowy został uszkodzony! Nie możesz odpalić salwy flagowej.' };
+      const shipLabel = this.boardSize >= 13 ? 'Okręt Flagowy (5-masztowiec)' : 'Okręt Flagowy (4-masztowiec)';
+      return { error: `Twój ${shipLabel} został uszkodzony! Nie możesz odpalić salwy flagowej.` };
     }
 
     player.salvoUsed = true;
@@ -377,9 +390,15 @@ class GameRoom {
     shooter.stats.shots++;
     if (shotResult.hit) {
       shooter.stats.hits++;
+      shooter.currentHitStreak = (shooter.currentHitStreak || 0) + 1;
+      recordHitStreak(shooter.name, shooter.currentHitStreak).catch(e => console.error('Error recording hit streak:', e));
+
       const letters = getLetters(this.boardSize);
       const coordName = `${letters[c] || 'A'}${r + 1}`;
       recordCellHit(coordName).catch(e => console.error('Error recording hit stat:', e));
+    } else {
+      // Pudło lub mina przerywa serię trafień pod rząd
+      shooter.currentHitStreak = 0;
     }
 
     if (shotResult.sunk && !this.firstSunkRecorded) {
@@ -478,10 +497,17 @@ class GameRoom {
     const enemyKey = forPlayerKey === 'p1' ? 'p2' : 'p1';
     const enemy = this.players[enemyKey];
 
-    // Check if my flagship is damaged
+    // Check if my flagship is damaged:
+    // 13x13 i 15x15: okręt 5-masztowy (5x1)
+    // 10x10: okręt 4-masztowy (4x1)
     let myFlagshipDamaged = false;
     if (me?.ships && me.ships.length > 0) {
-      const flagship = [...me.ships].sort((a, b) => b.size - a.size)[0];
+      let flagship = null;
+      if (this.boardSize >= 13) {
+        flagship = me.ships.find(s => s.size === 5) || [...me.ships].sort((a, b) => b.size - a.size)[0];
+      } else {
+        flagship = [...me.ships].sort((a, b) => b.size - a.size)[0];
+      }
       myFlagshipDamaged = flagship ? flagship.cells.some(c => c.hit) : false;
     }
 

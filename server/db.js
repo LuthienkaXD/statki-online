@@ -129,6 +129,12 @@ async function initDb() {
         sunk_count INT NOT NULL DEFAULT 0
       );
 
+      CREATE TABLE IF NOT EXISTS hit_streak_stats (
+        id INT PRIMARY KEY,
+        streak_count INT NOT NULL DEFAULT 0,
+        player_name VARCHAR(100) NOT NULL DEFAULT 'Brak'
+      );
+
       CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date_day);
       CREATE INDEX IF NOT EXISTS idx_users_wins ON users(wins DESC);
     `);
@@ -240,6 +246,12 @@ async function initDb() {
       CREATE TABLE IF NOT EXISTS first_sunk_stats (
         ship_size INTEGER PRIMARY KEY,
         sunk_count INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS hit_streak_stats (
+        id INTEGER PRIMARY KEY,
+        streak_count INTEGER NOT NULL DEFAULT 0,
+        player_name TEXT NOT NULL DEFAULT 'Brak'
       );
 
       CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date_day);
@@ -777,6 +789,29 @@ async function recordFirstSunkShip(shipSize) {
   `).run(size);
 }
 
+async function recordHitStreak(playerName, streak) {
+  const count = Number(streak);
+  const name = String(playerName || 'Gracz').trim();
+  if (!count || count <= 1) return;
+
+  if (isPostgres) {
+    const currentRes = await pgPool.query('SELECT streak_count, player_name FROM hit_streak_stats WHERE id = 1');
+    if (currentRes.rows.length === 0) {
+      await pgPool.query('INSERT INTO hit_streak_stats (id, streak_count, player_name) VALUES (1, $1, $2)', [count, name]);
+    } else if (count > currentRes.rows[0].streak_count) {
+      await pgPool.query('UPDATE hit_streak_stats SET streak_count = $1, player_name = $2 WHERE id = 1', [count, name]);
+    }
+    return;
+  }
+
+  const current = sqliteDb.prepare('SELECT streak_count, player_name FROM hit_streak_stats WHERE id = 1').get();
+  if (!current) {
+    sqliteDb.prepare('INSERT INTO hit_streak_stats (id, streak_count, player_name) VALUES (1, ?, ?)').run(count, name);
+  } else if (count > current.streak_count) {
+    sqliteDb.prepare('UPDATE hit_streak_stats SET streak_count = ?, player_name = ? WHERE id = 1').run(count, name);
+  }
+}
+
 async function getBattlefieldInsights() {
   const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
   const all100Cells = [];
@@ -798,6 +833,28 @@ async function getBattlefieldInsights() {
     rows = sqliteDb.prepare('SELECT cell_coord, hits_count FROM cell_hits_stats').all();
     firstSunkRows = sqliteDb.prepare('SELECT ship_size, sunk_count FROM first_sunk_stats ORDER BY sunk_count DESC').all();
   }
+
+  // Hit streak stats (najwięcej trafień pod rząd)
+  let maxStreakData = { streak: 0, playerName: 'Brak' };
+  try {
+    if (isPostgres) {
+      const streakRes = await pgPool.query('SELECT streak_count, player_name FROM hit_streak_stats WHERE id = 1');
+      if (streakRes.rows.length > 0) {
+        maxStreakData = {
+          streak: Number(streakRes.rows[0].streak_count) || 0,
+          playerName: streakRes.rows[0].player_name || 'Gracz'
+        };
+      }
+    } else {
+      const row = sqliteDb.prepare('SELECT streak_count, player_name FROM hit_streak_stats WHERE id = 1').get();
+      if (row) {
+        maxStreakData = {
+          streak: Number(row.streak_count) || 0,
+          playerName: row.player_name || 'Gracz'
+        };
+      }
+    }
+  } catch (e) {}
 
   const hitsMap = new Map();
   let totalHits = 0;
@@ -862,6 +919,7 @@ async function getBattlefieldInsights() {
     mostHit: mostHitCell ? { coord: mostHitCell, count: maxHits } : { coord: '—', count: 0 },
     leastHit: leastHitCell ? { coord: leastHitCell, count: minHits } : { coord: '—', count: 0 },
     firstSunk: mostCommonFirstSunk || { size: 0, name: 'Brak danych', count: 0, percent: 0 },
+    maxStreak: maxStreakData,
     totalHitsRecorded: totalHits,
     totalBattlesAnalyzed: totalFirstSunk
   };
@@ -895,5 +953,6 @@ module.exports = {
   getAdminStats,
   recordCellHit,
   recordFirstSunkShip,
+  recordHitStreak,
   getBattlefieldInsights
 };

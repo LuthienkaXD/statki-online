@@ -17,7 +17,8 @@ import {
   Crosshair,
   TrendingDown,
   Anchor,
-  BarChart3
+  BarChart3,
+  Flame
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -491,6 +492,29 @@ export default function LobbyView({
                     Rozegraj bitwę, aby zarejestrować pierwszy zatopiony okręt.
                   </p>
                 )}
+              </div>
+            </div>
+
+            {/* Najwięcej trafień pod rząd */}
+            <div className="bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200 rounded-2xl p-4 transition-all flex items-start space-x-3.5">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600 shrink-0">
+                <Flame className="w-5 h-5 fill-orange-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider font-chakra">
+                  Najwięcej trafień pod rząd
+                </div>
+                <div className="mt-1 flex items-baseline space-x-1.5 flex-wrap">
+                  <span className="text-xl font-black font-mono text-orange-600 tracking-tight">
+                    {battlefieldInsights?.maxStreak?.streak || 0}
+                  </span>
+                  <span className="text-xs font-mono text-slate-500 font-semibold truncate">
+                    ({battlefieldInsights?.maxStreak?.playerName || 'Brak'})
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                  Rekordowa seria celnych trafień bez ani jednego pudła.
+                </p>
               </div>
             </div>
 

@@ -662,6 +662,7 @@ io.on('connection', (socket) => {
       room.players.p1.salvoUsed = false;
       room.players.p1.salvoRemainingShots = 0;
       room.players.p1.bonusTurns = 0;
+      room.players.p1.currentHitStreak = 0;
     }
 
     if (room.players.p2) {
@@ -681,6 +682,7 @@ io.on('connection', (socket) => {
         room.players.p2.salvoUsed = false;
         room.players.p2.salvoRemainingShots = 0;
         room.players.p2.bonusTurns = 0;
+        room.players.p2.currentHitStreak = 0;
         const { BotAI } = require('./botAI');
         room.botAI = new BotAI(room.boardSize);
       } else {
@@ -694,6 +696,7 @@ io.on('connection', (socket) => {
         room.players.p2.salvoUsed = false;
         room.players.p2.salvoRemainingShots = 0;
         room.players.p2.bonusTurns = 0;
+        room.players.p2.currentHitStreak = 0;
       }
     }
 
