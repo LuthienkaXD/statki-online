@@ -17,7 +17,8 @@ import {
   HelpCircle,
   Eye,
   CheckSquare,
-  Square
+  Square,
+  Target
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
@@ -98,6 +99,14 @@ export default function GameView({
   });
 
   const mySurvivingShips = myIndividualShips.filter(s => !s.isSunk);
+
+  // Total ship cells to hit for full victory
+  const totalShipCellsRequired = enemyRequiredFleet.reduce((sum, s) => sum + (s.size * s.count), 0);
+  const myHitsAgainstEnemy = me?.stats?.hits || 0;
+  const enemyRemainingCellsToHit = Math.max(0, totalShipCellsRequired - myHitsAgainstEnemy);
+
+  const enemyHitsAgainstMe = enemy?.stats?.hits || 0;
+  const myRemainingCellsToHit = Math.max(0, totalShipCellsRequired - enemyHitsAgainstMe);
 
   // Load chat dictionary presets
   useEffect(() => {
@@ -483,9 +492,15 @@ export default function GameView({
                 <Shield className="w-3.5 h-3.5 text-blue-600" />
                 <span>Twoja ocalała flota:</span>
               </span>
-              <span className="text-[10px] font-mono text-slate-500">
-                Okrętów na wodzie: <strong>{mySurvivingShips.length}</strong>
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-mono text-slate-500">
+                  Okrętów: <strong>{mySurvivingShips.length}</strong>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center space-x-1" title="Liczba pól Twojej floty, które wróg musi jeszcze trafić">
+                  <Target className="w-3 h-3 text-blue-600" />
+                  <span>Pozostało pól: {myRemainingCellsToHit}</span>
+                </span>
+              </div>
             </div>
 
             {mySurvivingShips.length === 0 ? (
@@ -583,9 +598,15 @@ export default function GameView({
                   <Shield className="w-3.5 h-3.5 text-rose-600" />
                   <span>Statki do zatopienia u wroga:</span>
                 </span>
-                <span className="text-[10px] font-mono text-slate-500">
-                  Pozostało: <strong>{enemySurvivingShips.length}</strong>
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-mono text-slate-500">
+                    Statków: <strong>{enemySurvivingShips.length}</strong>
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1 shadow-2xs" title="Liczba pól floty przeciwnika pozostałych do trafienia">
+                    <Target className="w-3 h-3 text-rose-600 animate-pulse" />
+                    <span>Pozostało pól: {enemyRemainingCellsToHit}</span>
+                  </span>
+                </div>
               </div>
 
               {enemySurvivingShips.length === 0 ? (
