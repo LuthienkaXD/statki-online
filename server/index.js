@@ -641,12 +641,27 @@ io.on('connection', (socket) => {
     room.status = 'placement';
     room.turnsCount = 0;
     room.winner = null;
+    room.firstSunkRecorded = false;
+    room.rps = {
+      p1Choice: null,
+      p2Choice: null,
+      winner: null,
+      isTie: false,
+      resultText: null,
+      history: []
+    };
 
     if (room.players.p1) {
       room.players.p1.ready = false;
       room.players.p1.ships = null;
-      room.players.p1.shotsGrid = Array.from({ length: 10 }, () => Array(10).fill(null));
+      room.players.p1.mines = [];
+      room.players.p1.shotsGrid = Array.from({ length: room.boardSize }, () => Array(room.boardSize).fill(null));
       room.players.p1.stats = { hits: 0, shots: 0 };
+      room.players.p1.reconUsed = false;
+      room.players.p1.sonarUsed = false;
+      room.players.p1.salvoUsed = false;
+      room.players.p1.salvoRemainingShots = 0;
+      room.players.p1.bonusTurns = 0;
     }
 
     if (room.players.p2) {
@@ -661,6 +676,11 @@ io.on('connection', (socket) => {
         room.players.p2.mines = room.options.mines ? generateRandomMines(room.players.p2.ships, room.boardSize, room.options.minesCount) : [];
         room.players.p2.shotsGrid = Array.from({ length: room.boardSize }, () => Array(room.boardSize).fill(null));
         room.players.p2.stats = { hits: 0, shots: 0 };
+        room.players.p2.reconUsed = false;
+        room.players.p2.sonarUsed = false;
+        room.players.p2.salvoUsed = false;
+        room.players.p2.salvoRemainingShots = 0;
+        room.players.p2.bonusTurns = 0;
         const { BotAI } = require('./botAI');
         room.botAI = new BotAI(room.boardSize);
       } else {
@@ -669,6 +689,11 @@ io.on('connection', (socket) => {
         room.players.p2.mines = [];
         room.players.p2.shotsGrid = Array.from({ length: room.boardSize }, () => Array(room.boardSize).fill(null));
         room.players.p2.stats = { hits: 0, shots: 0 };
+        room.players.p2.reconUsed = false;
+        room.players.p2.sonarUsed = false;
+        room.players.p2.salvoUsed = false;
+        room.players.p2.salvoRemainingShots = 0;
+        room.players.p2.bonusTurns = 0;
       }
     }
 
