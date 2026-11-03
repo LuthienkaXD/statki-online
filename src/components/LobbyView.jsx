@@ -94,10 +94,10 @@ export default function LobbyView({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-6 flex flex-col items-center">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6">
       
       {/* Hero Header */}
-      <div className="text-center mb-8 max-w-2xl">
+      <div className="text-center mb-8 max-w-2xl mx-auto">
         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-semibold mb-3 shadow-xs">
           <Sparkles className="w-3.5 h-3.5 text-blue-600" />
           <span>Bitwa Morska Online • Nowe Tryby i Taktyki Wojenne</span>
@@ -112,369 +112,398 @@ export default function LobbyView({
         </p>
       </div>
 
-      {/* Battlefield Global Tactical Insights Box */}
-      {battlefieldInsights && (
-        <div className="w-full bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 mb-8 shadow-md border border-slate-700/60">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/60">
-            <div className="flex items-center space-x-2">
-              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-400">
+      {/* Main Layout: Left = Game Setup & Play Options, Right = Vertical Stats Panel */}
+      <div className="w-full flex flex-col xl:flex-row gap-6 items-start">
+        
+        {/* Left Column: Game Configuration & Play Options */}
+        <div className="flex-1 w-full min-w-0">
+          
+          {/* Game Config: Board Size & Modifiers */}
+          <div className="w-full bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-6 shadow-sm">
+            
+            {/* Step 1: Select Board Size */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-xs sm:text-sm font-bold font-chakra uppercase tracking-wider text-slate-800 flex items-center space-x-2">
+                  <Layers className="w-4 h-4 text-blue-600" />
+                  <span>1. Wybierz Rozmiar Planszy</span>
+                </label>
+                <span className="text-[11px] font-mono text-slate-500">
+                  Wybrano: <strong>{boardSize}×{boardSize}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  {
+                    size: 10,
+                    title: 'Klasyczna 10×10',
+                    desc: '10 standardowych statków (1×4, 2×3, 3×2, 4×1)',
+                    tag: 'STANDARD'
+                  },
+                  {
+                    size: 13,
+                    title: 'Taktyczna 13×13',
+                    desc: '13 statków (w tym potężny 5-masztowy Lotniskowiec)',
+                    tag: 'ŚREDNIA'
+                  },
+                  {
+                    size: 15,
+                    title: 'Epicka 15×15',
+                    desc: '15 statków + Unikalny Pancernik w kształcie L (3×2)',
+                    tag: 'SPECJALNA (L-SHIP)'
+                  }
+                ].map(b => {
+                  const isSelected = boardSize === b.size;
+                  return (
+                    <button
+                      key={b.size}
+                      onClick={() => { sounds.playClick(); setBoardSize(b.size); }}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/30 shadow-xs'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-chakra font-bold text-sm sm:text-base text-slate-900">{b.title}</span>
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                          isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {b.tag}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 leading-snug">{b.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Step 2: Modifiers Checkboxes */}
+            <div className="pt-5 border-t border-slate-100">
+              <label className="text-xs sm:text-sm font-bold font-chakra uppercase tracking-wider text-slate-800 flex items-center space-x-2 mb-3">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>2. Dodatkowe Urozmaicenia Rozgrywki (Aktywne w pokoju)</span>
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
+                {/* Modifier 1: Sea Mines */}
+                <div
+                  onClick={() => toggleModifier('mines')}
+                  className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
+                    !adminConfig.mines
+                      ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
+                      : modifiers.mines
+                      ? 'border-rose-400 bg-rose-50/50 ring-1 ring-rose-400/30 cursor-pointer'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={modifiers.mines && adminConfig.mines}
+                    disabled={!adminConfig.mines}
+                    onChange={() => {}}
+                    className="mt-1 rounded text-rose-600 focus:ring-rose-500 h-4 w-4 pointer-events-none"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <Bomb className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Miny Morskie (Utrata tury)</span>
+                      </span>
+                      {!adminConfig.mines && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      W wodach ukryte są miny przeciwnika. Strzał w minę natychmiast kończy Twoją turę!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Modifier 2: Reconnaissance Plane */}
+                <div
+                  onClick={() => toggleModifier('reconPlane')}
+                  className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
+                    !adminConfig.reconPlane
+                      ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
+                      : modifiers.reconPlane
+                      ? 'border-blue-400 bg-blue-50/50 ring-1 ring-blue-400/30 cursor-pointer'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={modifiers.reconPlane && adminConfig.reconPlane}
+                    disabled={!adminConfig.reconPlane}
+                    onChange={() => {}}
+                    className="mt-1 rounded text-blue-600 focus:ring-blue-500 h-4 w-4 pointer-events-none"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <Plane className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Zwiad Lotniczy (Radar 3×3)</span>
+                      </span>
+                      {!adminConfig.reconPlane && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      Jednorazowy skan wybranego kwadratu 3×3 informujący, czy wykryto tam okręt wroga.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Modifier 3: Sonar Impulse */}
+                <div
+                  onClick={() => toggleModifier('sonar')}
+                  className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
+                    !adminConfig.sonar
+                      ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
+                      : modifiers.sonar
+                      ? 'border-teal-400 bg-teal-50/50 ring-1 ring-teal-400/30 cursor-pointer'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={modifiers.sonar && adminConfig.sonar}
+                    disabled={!adminConfig.sonar}
+                    onChange={() => {}}
+                    className="mt-1 rounded text-teal-600 focus:ring-teal-500 h-4 w-4 pointer-events-none"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <Radio className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Impuls Sonaru (Skan wiersza/kolumny)</span>
+                      </span>
+                      {!adminConfig.sonar && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      Wysyła falę dźwiękową przez całą linię wroga. Zwraca echo: czy w tej linii znajduje się okręt.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Modifier 4: Flagship Salvo */}
+                <div
+                  onClick={() => toggleModifier('flagshipSalvo')}
+                  className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
+                    !adminConfig.flagshipSalvo
+                      ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
+                      : modifiers.flagshipSalvo
+                      ? 'border-amber-400 bg-amber-50/50 ring-1 ring-amber-400/30 cursor-pointer'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={modifiers.flagshipSalvo && adminConfig.flagshipSalvo}
+                    disabled={!adminConfig.flagshipSalvo}
+                    onChange={() => {}}
+                    className="mt-1 rounded text-amber-600 focus:ring-amber-500 h-4 w-4 pointer-events-none"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <Zap className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Podwójna Salwa Flagowca</span>
+                      </span>
+                      {!adminConfig.flagshipSalvo && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      Dopóki Twój największy okręt jest nienaruszony, możesz raz na mecz oddać 2 strzały w jednej turze!
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          {/* Main Options Grid */}
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            
+            {/* Play with Friend */}
+            <div className="bg-white border-2 border-slate-200 hover:border-blue-500 transition-all rounded-3xl p-6 sm:p-7 shadow-sm hover:shadow-md flex flex-col justify-between group">
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-4 group-hover:scale-105 transition-transform">
+                  <Users className="w-6 h-6" />
+                </div>
+
+                <h2 className="text-xl font-bold font-chakra text-slate-900 mb-1">
+                  Zagraj ze Znajomym
+                </h2>
+                <p className="text-xs text-slate-600 mb-5 leading-relaxed">
+                  Utwórz pokój z wybraną planszą ({boardSize}×{boardSize}) i wyślij link. Po rozstawieniu floty zagracie w Kamień-Papier-Nożyce o pierwszy strzał!
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <button
+                  onClick={() => handleCreateGame(false)}
+                  className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold font-chakra text-sm sm:text-base flex items-center justify-center space-x-2 transition shadow-sm hover:shadow-md cursor-pointer"
+                >
+                  <span>Stwórz Nowy Pokój ({boardSize}×{boardSize})</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <form onSubmit={handleJoinSubmit} className="flex items-center space-x-2 pt-2 border-t border-slate-100">
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="Kod pokoju (np. X7K9A)"
+                    className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono uppercase text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                    maxLength={8}
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition border border-slate-200 cursor-pointer"
+                  >
+                    Dołącz
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Single Player vs Bot */}
+            <div className="bg-white border-2 border-slate-200 hover:border-emerald-500 transition-all rounded-3xl p-6 sm:p-7 shadow-sm hover:shadow-md flex flex-col justify-between group">
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-105 transition-transform">
+                  <Bot className="w-6 h-6" />
+                </div>
+
+                <h2 className="text-xl font-bold font-chakra text-slate-900 mb-1">
+                  Trening z Komputerem
+                </h2>
+                <p className="text-xs text-slate-600 mb-5 leading-relaxed">
+                  Zagraj natychmiast przeciwko Kapitanowi Morganowi na planszy {boardSize}×{boardSize} z wybranymi modyfikatorami taktycznymi.
+                </p>
+              </div>
+
+              <div>
+                <button
+                  onClick={() => handleCreateGame(true)}
+                  className="w-full py-3.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-chakra text-sm sm:text-base flex items-center justify-center space-x-2 transition shadow-sm hover:shadow-md cursor-pointer"
+                >
+                  <span>Rozpocznij Mecz z Botem</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* Right Column: Vertical White Battlefield Stats Panel */}
+        <div className="w-full xl:w-80 2xl:w-88 shrink-0 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm self-stretch flex flex-col">
+          <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-100">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
                 <BarChart3 className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-chakra font-bold text-sm tracking-wide text-white uppercase flex items-center space-x-2">
-                  <span>Morskie Statystyki Bojowe</span>
-                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 lowercase">
-                    na żywo
-                  </span>
+                <h3 className="font-chakra font-bold text-sm text-slate-900 uppercase tracking-wide">
+                  Statystyki Bojowe
                 </h3>
+                <p className="text-[10px] text-slate-500 font-mono">
+                  Analiza pól i celności na żywo
+                </p>
               </div>
             </div>
-            <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
-              Ostrzelane pozycje graczy
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Live
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col space-y-3.5 flex-1">
             {/* Najbardziej trafiane pole */}
-            <div className="bg-slate-800/60 hover:bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 flex items-center space-x-3 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+            <div className="bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200 rounded-2xl p-4 transition-all flex items-start space-x-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
                 <Crosshair className="w-5 h-5 animate-pulse" />
               </div>
-              <div className="min-w-0">
-                <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider font-chakra">
                   Najczęściej trafiane
                 </div>
-                <div className="flex items-baseline space-x-2 mt-0.5">
-                  <span className="text-xl font-black font-chakra text-rose-400">
-                    {battlefieldInsights.mostHit?.coord || '—'}
+                <div className="flex items-baseline space-x-2 mt-1">
+                  <span className="text-2xl font-black font-chakra text-rose-600">
+                    {battlefieldInsights?.mostHit?.coord || '—'}
                   </span>
-                  {battlefieldInsights.mostHit?.count > 0 && (
-                    <span className="text-[10px] font-mono text-slate-400">
+                  {battlefieldInsights?.mostHit?.count > 0 && (
+                    <span className="text-xs font-mono text-slate-500 font-medium">
                       ({battlefieldInsights.mostHit.count} {battlefieldInsights.mostHit.count === 1 ? 'trafienie' : 'trafień'})
                     </span>
                   )}
                 </div>
+                <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                  Punkt na mapie, w który najczęściej padają celne pociski.
+                </p>
               </div>
             </div>
 
             {/* Najrzadziej trafiane pole */}
-            <div className="bg-slate-800/60 hover:bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 flex items-center space-x-3 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+            <div className="bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200 rounded-2xl p-4 transition-all flex items-start space-x-3.5">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
                 <TrendingDown className="w-5 h-5" />
               </div>
-              <div className="min-w-0">
-                <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider font-chakra">
                   Najrzadziej trafiane
                 </div>
-                <div className="flex items-baseline space-x-2 mt-0.5">
-                  <span className="text-xl font-black font-chakra text-emerald-400">
-                    {battlefieldInsights.leastHit?.coord || '—'}
+                <div className="flex items-baseline space-x-2 mt-1">
+                  <span className="text-2xl font-black font-chakra text-emerald-600">
+                    {battlefieldInsights?.leastHit?.coord || '—'}
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">
-                    ({battlefieldInsights.leastHit?.count || 0} {battlefieldInsights.leastHit?.count === 1 ? 'trafienie' : 'trafień'})
+                  <span className="text-xs font-mono text-slate-500 font-medium">
+                    ({battlefieldInsights?.leastHit?.count || 0} {battlefieldInsights?.leastHit?.count === 1 ? 'trafienie' : 'trafień'})
                   </span>
                 </div>
+                <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                  Potencjalnie najbezpieczniejszy sektor do ukrycia okrętu.
+                </p>
               </div>
             </div>
 
             {/* Pierwszy zatopiony statek */}
-            <div className="bg-slate-800/60 hover:bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 flex items-center space-x-3 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+            <div className="bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200 rounded-2xl p-4 transition-all flex items-start space-x-3.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
                 <Anchor className="w-5 h-5" />
               </div>
-              <div className="min-w-0">
-                <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider font-chakra">
                   Pierwszy zatapiany okręt
                 </div>
-                <div className="flex items-baseline space-x-2 mt-0.5">
-                  <span className="text-base font-black font-chakra text-amber-300 truncate">
-                    {battlefieldInsights.firstSunk?.name || 'Brak danych'}
+                <div className="mt-1">
+                  <span className="text-base font-black font-chakra text-amber-700 block truncate">
+                    {battlefieldInsights?.firstSunk?.name || 'Brak danych'}
                   </span>
                 </div>
-                {battlefieldInsights.firstSunk?.count > 0 && (
-                  <div className="text-[10px] font-mono text-amber-200/80">
-                    W {battlefieldInsights.firstSunk.percent}% bitew idzie na dno jako pierwszy
+                {battlefieldInsights?.firstSunk?.count > 0 ? (
+                  <div className="text-[11px] font-mono text-slate-600 font-semibold mt-1">
+                    W <strong className="text-amber-700">{battlefieldInsights.firstSunk.percent}%</strong> bitew tonie jako pierwszy
                   </div>
+                ) : (
+                  <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                    Rozegraj bitwę, aby zarejestrować pierwszy zatopiony okręt.
+                  </p>
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Game Config: Board Size & Modifiers */}
-      <div className="w-full bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-8 shadow-sm">
-        
-        {/* Step 1: Select Board Size */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-xs sm:text-sm font-bold font-chakra uppercase tracking-wider text-slate-800 flex items-center space-x-2">
-              <Layers className="w-4 h-4 text-blue-600" />
-              <span>1. Wybierz Rozmiar Planszy</span>
-            </label>
-            <span className="text-[11px] font-mono text-slate-500">
-              Wybrano: <strong>{boardSize}×{boardSize}</strong>
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              {
-                size: 10,
-                title: 'Klasyczna 10×10',
-                desc: '10 standardowych statków (1×4, 2×3, 3×2, 4×1)',
-                tag: 'STANDARD'
-              },
-              {
-                size: 13,
-                title: 'Taktyczna 13×13',
-                desc: '13 statków (w tym potężny 5-masztowy Lotniskowiec)',
-                tag: 'ŚREDNIA'
-              },
-              {
-                size: 15,
-                title: 'Epicka 15×15',
-                desc: '15 statków + Unikalny Pancernik w kształcie L (3×2)',
-                tag: 'SPECJALNA (L-SHIP)'
-              }
-            ].map(b => {
-              const isSelected = boardSize === b.size;
-              return (
-                <button
-                  key={b.size}
-                  onClick={() => { sounds.playClick(); setBoardSize(b.size); }}
-                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
-                    isSelected
-                      ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/30 shadow-xs'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-chakra font-bold text-sm sm:text-base text-slate-900">{b.title}</span>
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                      isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {b.tag}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-snug">{b.desc}</p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Step 2: Modifiers Checkboxes */}
-        <div className="pt-5 border-t border-slate-100">
-          <label className="text-xs sm:text-sm font-bold font-chakra uppercase tracking-wider text-slate-800 flex items-center space-x-2 mb-3">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>2. Dodatkowe Urozmaicenia Rozgrywki (Aktywne w pokoju)</span>
-          </label>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            
-            {/* Modifier 1: Sea Mines */}
-            <div
-              onClick={() => toggleModifier('mines')}
-              className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
-                !adminConfig.mines
-                  ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
-                  : modifiers.mines
-                  ? 'border-rose-400 bg-rose-50/50 ring-1 ring-rose-400/30 cursor-pointer'
-                  : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={modifiers.mines && adminConfig.mines}
-                disabled={!adminConfig.mines}
-                onChange={() => {}}
-                className="mt-1 rounded text-rose-600 focus:ring-rose-500 h-4 w-4 pointer-events-none"
-              />
-              <div className="flex-1">
-                <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                  <span className="flex items-center space-x-1.5">
-                    <Bomb className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Miny Morskie (Utrata tury)</span>
-                  </span>
-                  {!adminConfig.mines && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                  W wodach ukryte są miny przeciwnika. Strzał w minę natychmiast kończy Twoją turę!
-                </p>
+            {/* Informacyjna wskazówka taktyczna */}
+            <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200/80 text-[11px] text-blue-900 mt-auto">
+              <div className="font-bold flex items-center space-x-1.5 mb-1 font-chakra">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>Wskazówka Taktyczna</span>
               </div>
+              <p className="text-slate-600 text-[10.5px] leading-relaxed">
+                Statystyki aktualizują się automatycznie po każdym celnym strzale i zniszczeniu okrętu we wszystkich bitwach.
+              </p>
             </div>
-
-            {/* Modifier 2: Reconnaissance Plane */}
-            <div
-              onClick={() => toggleModifier('reconPlane')}
-              className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
-                !adminConfig.reconPlane
-                  ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
-                  : modifiers.reconPlane
-                  ? 'border-blue-400 bg-blue-50/50 ring-1 ring-blue-400/30 cursor-pointer'
-                  : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={modifiers.reconPlane && adminConfig.reconPlane}
-                disabled={!adminConfig.reconPlane}
-                onChange={() => {}}
-                className="mt-1 rounded text-blue-600 focus:ring-blue-500 h-4 w-4 pointer-events-none"
-              />
-              <div className="flex-1">
-                <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                  <span className="flex items-center space-x-1.5">
-                    <Plane className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Zwiad Lotniczy (Radar 3×3)</span>
-                  </span>
-                  {!adminConfig.reconPlane && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                  Jednorazowy skan wybranego kwadratu 3×3 informujący, czy wykryto tam okręt wroga.
-                </p>
-              </div>
-            </div>
-
-            {/* Modifier 3: Sonar Impulse (NEW) */}
-            <div
-              onClick={() => toggleModifier('sonar')}
-              className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
-                !adminConfig.sonar
-                  ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
-                  : modifiers.sonar
-                  ? 'border-teal-400 bg-teal-50/50 ring-1 ring-teal-400/30 cursor-pointer'
-                  : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={modifiers.sonar && adminConfig.sonar}
-                disabled={!adminConfig.sonar}
-                onChange={() => {}}
-                className="mt-1 rounded text-teal-600 focus:ring-teal-500 h-4 w-4 pointer-events-none"
-              />
-              <div className="flex-1">
-                <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                  <span className="flex items-center space-x-1.5">
-                    <Radio className="w-3.5 h-3.5 text-teal-600" />
-                    <span>Impuls Sonaru (Skan wiersza/kolumny)</span>
-                  </span>
-                  {!adminConfig.sonar && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                  Wysyła falę dźwiękową przez całą linię wroga. Zwraca echo: czy w tej linii znajduje się okręt.
-                </p>
-              </div>
-            </div>
-
-            {/* Modifier 4: Flagship Salvo (NEW) */}
-            <div
-              onClick={() => toggleModifier('flagshipSalvo')}
-              className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
-                !adminConfig.flagshipSalvo
-                  ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
-                  : modifiers.flagshipSalvo
-                  ? 'border-amber-400 bg-amber-50/50 ring-1 ring-amber-400/30 cursor-pointer'
-                  : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={modifiers.flagshipSalvo && adminConfig.flagshipSalvo}
-                disabled={!adminConfig.flagshipSalvo}
-                onChange={() => {}}
-                className="mt-1 rounded text-amber-600 focus:ring-amber-500 h-4 w-4 pointer-events-none"
-              />
-              <div className="flex-1">
-                <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                  <span className="flex items-center space-x-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Podwójna Salwa Flagowca</span>
-                  </span>
-                  {!adminConfig.flagshipSalvo && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                  Dopóki Twój największy okręt jest nienaruszony, możesz raz na mecz oddać 2 strzały w jednej turze!
-                </p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
-
-      {/* Main Options Grid */}
-      <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        
-        {/* Play with Friend */}
-        <div className="bg-white border-2 border-slate-200 hover:border-blue-500 transition-all rounded-3xl p-6 sm:p-7 shadow-sm hover:shadow-md flex flex-col justify-between group">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-4 group-hover:scale-105 transition-transform">
-              <Users className="w-6 h-6" />
-            </div>
-
-            <h2 className="text-xl font-bold font-chakra text-slate-900 mb-1">
-              Zagraj ze Znajomym
-            </h2>
-            <p className="text-xs text-slate-600 mb-5 leading-relaxed">
-              Utwórz pokój z wybraną planszą ({boardSize}×{boardSize}) i wyślij link. Po rozstawieniu floty zagracie w Kamień-Papier-Nożyce o pierwszy strzał!
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <button
-              onClick={() => handleCreateGame(false)}
-              className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold font-chakra text-sm sm:text-base flex items-center justify-center space-x-2 transition shadow-sm hover:shadow-md cursor-pointer"
-            >
-              <span>Stwórz Nowy Pokój ({boardSize}×{boardSize})</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <form onSubmit={handleJoinSubmit} className="flex items-center space-x-2 pt-2 border-t border-slate-100">
-              <input
-                type="text"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="Kod pokoju (np. X7K9A)"
-                className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono uppercase text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                maxLength={8}
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition border border-slate-200 cursor-pointer"
-              >
-                Dołącz
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Single Player vs Bot */}
-        <div className="bg-white border-2 border-slate-200 hover:border-emerald-500 transition-all rounded-3xl p-6 sm:p-7 shadow-sm hover:shadow-md flex flex-col justify-between group">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-105 transition-transform">
-              <Bot className="w-6 h-6" />
-            </div>
-
-            <h2 className="text-xl font-bold font-chakra text-slate-900 mb-1">
-              Trening z Komputerem
-            </h2>
-            <p className="text-xs text-slate-600 mb-5 leading-relaxed">
-              Zagraj natychmiast przeciwko Kapitanowi Morganowi na planszy {boardSize}×{boardSize} z wybranymi modyfikatorami taktycznymi.
-            </p>
-          </div>
-
-          <div>
-            <button
-              onClick={() => handleCreateGame(true)}
-              className="w-full py-3.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-chakra text-sm sm:text-base flex items-center justify-center space-x-2 transition shadow-sm hover:shadow-md cursor-pointer"
-            >
-              <span>Rozpocznij Mecz z Botem</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
