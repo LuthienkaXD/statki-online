@@ -55,15 +55,15 @@ export default function SailorsMatchAnimation({
   const meIsSleeping = status === 'playing' && isMeWaiting && isSleepingTimeout;
 
   return (
-    <div className="w-full xl:w-56 shrink-0 flex flex-col items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-xs select-none">
-      <div className="w-full flex items-center justify-between mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800/80">
+    <div className="w-full xl:w-56 shrink-0 flex flex-col items-center bg-transparent border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-3 shadow-xs select-none">
+      <div className="w-full flex items-center justify-between mb-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
         <span className="text-[10px] font-chakra font-bold text-slate-500 uppercase tracking-wider">
           Pojedynek Kapitanów
         </span>
         <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold ${
           isSleepingTimeout
             ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 animate-pulse'
-            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+            : 'bg-slate-100/80 text-slate-600 dark:bg-slate-800/80 dark:text-slate-400'
         }`}>
           {turnElapsedSec}s {isSleepingTimeout ? '💤' : '⏳'}
         </span>
@@ -130,15 +130,28 @@ export default function SailorsMatchAnimation({
             <rect x="8" y="-9" width="44" height="9" rx="1.5" fill="url(#gridBoard)" stroke="#475569" strokeWidth="0.8" />
             {/* Horizontal Line */}
             <line x1="9" y1="-4.5" x2="51" y2="-4.5" stroke="#64748b" strokeWidth="0.6" strokeDasharray="1 1" />
-            {/* Middle Vertical Divider Line (dzieląca planszę na dwa) */}
-            <line x1="30" y1="-9" x2="30" y2="0" stroke="#0f172a" strokeWidth="1.4" />
+            
+            {/* Pionowa Zasłonka / Parawan pomiędzy planszami (żeby gracze nie widzieli swoich statków) */}
+            <g transform="translate(30, -32)">
+              {/* Podstawa/nóżka zasłonki */}
+              <rect x="-3.5" y="30" width="7" height="2.5" rx="1" fill="#334155" />
+              {/* Pionowa deska/ekran zasłonki */}
+              <rect x="-2" y="2" width="4" height="30" rx="1.5" fill="#475569" stroke="#1e293b" strokeWidth="0.8" />
+              {/* Tkanina / front parawanu w paski morskie */}
+              <rect x="-1.5" y="4" width="3" height="26" fill="#0284c7" />
+              <line x1="-1.5" y1="9" x2="1.5" y2="9" stroke="#ffffff" strokeWidth="1" />
+              <line x1="-1.5" y1="15" x2="1.5" y2="15" stroke="#ffffff" strokeWidth="1" />
+              <line x1="-1.5" y1="21" x2="1.5" y2="21" stroke="#ffffff" strokeWidth="1" />
+              {/* Ozdobny uchwyt u góry */}
+              <circle cx="0" cy="2" r="1.5" fill="#f59e0b" />
+            </g>
             
             {/* Mini ships on Enemy (left) half */}
-            <rect x="13" y="-7.5" width="6" height="2" rx="0.5" fill={enemyFleetColor} />
-            <rect x="22" y="-6.5" width="4" height="2" rx="0.5" fill={enemyFleetColor} />
+            <rect x="11" y="-7.5" width="7" height="2.2" rx="0.5" fill={enemyFleetColor} />
+            <rect x="21" y="-6" width="5" height="2" rx="0.5" fill={enemyFleetColor} />
             {/* Mini ships on Player (right) half */}
-            <rect x="34" y="-7.5" width="7" height="2" rx="0.5" fill={myFleetColor} />
-            <rect x="44" y="-6" width="3.5" height="2" rx="0.5" fill={myFleetColor} />
+            <rect x="34" y="-7.5" width="7" height="2.2" rx="0.5" fill={myFleetColor} />
+            <rect x="44" y="-6" width="4" height="2" rx="0.5" fill={myFleetColor} />
           </g>
 
           {/* ==================== LEFT SAILOR: ENEMY ==================== */}
