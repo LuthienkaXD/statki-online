@@ -100,13 +100,34 @@ export default function GameView({
 
   const mySurvivingShips = myIndividualShips.filter(s => !s.isSunk);
 
-  // Total ship cells to hit for full victory
-  const totalShipCellsRequired = enemyRequiredFleet.reduce((sum, s) => sum + (s.size * s.count), 0);
-  const myHitsAgainstEnemy = me?.stats?.hits || 0;
-  const enemyRemainingCellsToHit = Math.max(0, totalShipCellsRequired - myHitsAgainstEnemy);
+  // Unshot / unrevealed board cells calculation (pola które jeszcze nie zostały ruszone)
+  let enemyUnshotCells = 0;
+  if (enemy?.shotsGrid) {
+    for (let r = 0; r < boardSize; r++) {
+      for (let c = 0; c < boardSize; c++) {
+        const val = enemy.shotsGrid[r]?.[c];
+        if (val === null || val === undefined) {
+          enemyUnshotCells++;
+        }
+      }
+    }
+  } else {
+    enemyUnshotCells = boardSize * boardSize;
+  }
 
-  const enemyHitsAgainstMe = enemy?.stats?.hits || 0;
-  const myRemainingCellsToHit = Math.max(0, totalShipCellsRequired - enemyHitsAgainstMe);
+  let myUnshotCells = 0;
+  if (me?.shotsGrid) {
+    for (let r = 0; r < boardSize; r++) {
+      for (let c = 0; c < boardSize; c++) {
+        const val = me.shotsGrid[r]?.[c];
+        if (val === null || val === undefined) {
+          myUnshotCells++;
+        }
+      }
+    }
+  } else {
+    myUnshotCells = boardSize * boardSize;
+  }
 
   // Load chat dictionary presets
   useEffect(() => {
@@ -496,9 +517,9 @@ export default function GameView({
                 <span className="text-[10px] font-mono text-slate-500">
                   Okrętów: <strong>{mySurvivingShips.length}</strong>
                 </span>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center space-x-1" title="Liczba pól Twojej floty, które wróg musi jeszcze trafić">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center space-x-1" title="Liczba pól Twojej planszy, w które wróg jeszcze nie strzelił">
                   <Target className="w-3 h-3 text-blue-600" />
-                  <span>Pozostało pól: {myRemainingCellsToHit}</span>
+                  <span>Nieruszone pola: {myUnshotCells}</span>
                 </span>
               </div>
             </div>
@@ -602,9 +623,9 @@ export default function GameView({
                   <span className="text-[10px] font-mono text-slate-500">
                     Statków: <strong>{enemySurvivingShips.length}</strong>
                   </span>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1 shadow-2xs" title="Liczba pól floty przeciwnika pozostałych do trafienia">
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1 shadow-2xs" title="Liczba pól na planszy przeciwnika, w które jeszcze nie oddano strzału">
                     <Target className="w-3 h-3 text-rose-600 animate-pulse" />
-                    <span>Pozostało pól: {enemyRemainingCellsToHit}</span>
+                    <span>Nieruszone pola: {enemyUnshotCells}</span>
                   </span>
                 </div>
               </div>
