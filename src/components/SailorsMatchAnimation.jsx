@@ -55,12 +55,12 @@ export default function SailorsMatchAnimation({
   const meIsSleeping = status === 'playing' && isMeWaiting && isSleepingTimeout;
 
   return (
-    <div className="w-full xl:w-56 shrink-0 flex flex-col items-center bg-transparent border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-3 shadow-xs select-none">
-      <div className="w-full flex items-center justify-between mb-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
-        <span className="text-[10px] font-chakra font-bold text-slate-500 uppercase tracking-wider">
+    <div className="w-full xl:w-64 shrink-0 flex flex-col items-center bg-transparent border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-3.5 shadow-xs select-none">
+      <div className="w-full flex items-center justify-between mb-2 pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+        <span className="text-[11px] font-chakra font-bold text-slate-500 uppercase tracking-wider">
           Pojedynek Kapitanów
         </span>
-        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold ${
+        <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${
           isSleepingTimeout
             ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 animate-pulse'
             : 'bg-slate-100/80 text-slate-600 dark:bg-slate-800/80 dark:text-slate-400'
@@ -70,10 +70,10 @@ export default function SailorsMatchAnimation({
       </div>
 
       {/* SVG Canvas with Sailors & Table */}
-      <div className="w-full h-44 flex items-center justify-center relative overflow-visible">
+      <div className="w-full h-52 sm:h-56 flex items-center justify-center relative overflow-visible">
         <svg
           viewBox="0 0 220 160"
-          className="w-full h-full max-h-44 drop-shadow-sm overflow-visible"
+          className="w-full h-full max-h-56 drop-shadow-sm overflow-visible"
         >
           <defs>
             {/* Soft shadows & gradients */}
@@ -298,19 +298,6 @@ export default function SailorsMatchAnimation({
             )}
           </g>
         </svg>
-      </div>
-
-      {/* Helper caption */}
-      <div className="w-full text-center mt-1">
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-          {enemyIsSleeping
-            ? 'Przeciwnik zasnął czekając na Twój ruch! 💤'
-            : meIsSleeping
-            ? 'Czekasz ponad 30s... Twój marynarz przysypia! 💤'
-            : isMyTurn
-            ? 'Twój ruch — marynarze skupieni nad planszą'
-            : 'Ruch przeciwnika — chwila skupienia'}
-        </span>
       </div>
     </div>
   );
