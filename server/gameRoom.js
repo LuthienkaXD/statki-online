@@ -252,12 +252,25 @@ class GameRoom {
     const enemyKey = playerKey === 'p1' ? 'p2' : 'p1';
     const enemy = this.players[enemyKey];
 
+    // Sprawdzamy jedynie pola, które NIE zostały jeszcze odkryte (shot === null / undefined)
+    // oraz ignorujemy statki, które są już zatopione (sunk === true).
     let foundShip = false;
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         const nr = centerR + dr;
         const nc = centerC + dc;
-        if (enemy.ships.some(s => s.cells.some(c => c.r === nr && c.c === nc))) {
+        if (nr < 0 || nr >= this.boardSize || nc < 0 || nc >= this.boardSize) continue;
+
+        // Jeśli pole zostało już odkryte przez gracza, radar nie bierze go pod uwagę
+        const alreadyShot = enemy.shotsGrid[nr]?.[nc] !== null && enemy.shotsGrid[nr]?.[nc] !== undefined;
+        if (alreadyShot) continue;
+
+        // Sprawdź czy na tym nieodkrytym polu znajduje się jakikolwiek NIEZATOPIONY statek
+        const hasUndiscoveredShip = (enemy.ships || []).some(s => 
+          !s.sunk && s.cells.some(c => c.r === nr && c.c === nc)
+        );
+
+        if (hasUndiscoveredShip) {
           foundShip = true;
         }
       }
@@ -281,11 +294,37 @@ class GameRoom {
     const enemyKey = playerKey === 'p1' ? 'p2' : 'p1';
     const enemy = this.players[enemyKey];
 
+    // Sonar ma wykrywać jedynie na polach nieodkrytych (nie ruszone strzałem)
+    // oraz całkowicie ignorować zatopione już statki.
     let detected = false;
     if (type === 'row') {
-      detected = enemy.ships.some(s => s.cells.some(c => c.r === index));
+      const r = index;
+      for (let c = 0; c < this.boardSize; c++) {
+        const alreadyShot = enemy.shotsGrid[r]?.[c] !== null && enemy.shotsGrid[r]?.[c] !== undefined;
+        if (alreadyShot) continue;
+
+        const hasUndiscoveredShip = (enemy.ships || []).some(s =>
+          !s.sunk && s.cells.some(cell => cell.r === r && cell.c === c)
+        );
+        if (hasUndiscoveredShip) {
+          detected = true;
+          break;
+        }
+      }
     } else {
-      detected = enemy.ships.some(s => s.cells.some(c => c.c === index));
+      const c = index;
+      for (let r = 0; r < this.boardSize; r++) {
+        const alreadyShot = enemy.shotsGrid[r]?.[c] !== null && enemy.shotsGrid[r]?.[c] !== undefined;
+        if (alreadyShot) continue;
+
+        const hasUndiscoveredShip = (enemy.ships || []).some(s =>
+          !s.sunk && s.cells.some(cell => cell.r === r && cell.c === c)
+        );
+        if (hasUndiscoveredShip) {
+          detected = true;
+          break;
+        }
+      }
     }
 
     const lineLabel = type === 'row' ? `Wiersz ${index + 1}` : `Kolumna ${index + 1}`;

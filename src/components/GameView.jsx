@@ -46,6 +46,7 @@ export default function GameView({
   const [showRemainingShips, setShowRemainingShips] = useState(true);
   const [showSurrenderAnim, setShowSurrenderAnim] = useState(true);
   const chatBottomRef = useRef(null);
+  const chatScrollContainerRef = useRef(null);
 
   const { me, enemy, turn, status, winner, isBotGame, roomId, chat, boardSize = 10, options = {} } = gameState;
   const isMyTurn = status === 'playing' && turn === me?.key;
@@ -146,9 +147,11 @@ export default function GameView({
       });
   }, []);
 
-  // Auto scroll chat
+  // Auto scroll chat internally without scrolling the entire window/page
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatScrollContainerRef.current) {
+      chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
+    }
   }, [chat]);
 
   // Victory celebration with confetti
@@ -758,7 +761,7 @@ export default function GameView({
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
+          <div ref={chatScrollContainerRef} className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
             {chat && chat.length > 0 ? (
               chat.map((msg, i) => (
                 <div
