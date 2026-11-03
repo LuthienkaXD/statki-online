@@ -28,7 +28,8 @@ const {
   getRandomBotName,
   getSystemSettings,
   updateSystemSetting,
-  getAdminStats
+  getAdminStats,
+  getBattlefieldInsights
 } = require('./db');
 const {
   hashPassword,
@@ -167,6 +168,17 @@ app.get('/api/leaderboard/all-time', async (req, res) => {
   } catch (err) {
     console.error('Error fetching all-time leaderboard:', err);
     res.status(500).json({ error: 'Błąd pobierania rankingu ogólnego.' });
+  }
+});
+
+// Battlefield stats insights (most hit cell, least hit cell, first sunk ship)
+app.get('/api/stats/battlefield-insights', async (req, res) => {
+  try {
+    const insights = await getBattlefieldInsights();
+    res.json(insights);
+  } catch (err) {
+    console.error('Error fetching battlefield insights:', err);
+    res.status(500).json({ error: 'Błąd pobierania statystyk pól bitwy.' });
   }
 });
 

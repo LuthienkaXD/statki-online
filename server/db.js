@@ -119,6 +119,16 @@ async function initDb() {
         description TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS cell_hits_stats (
+        cell_coord VARCHAR(10) PRIMARY KEY,
+        hits_count INT NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS first_sunk_stats (
+        ship_size INT PRIMARY KEY,
+        sunk_count INT NOT NULL DEFAULT 0
+      );
+
       CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date_day);
       CREATE INDEX IF NOT EXISTS idx_users_wins ON users(wins DESC);
     `);
@@ -220,6 +230,16 @@ async function initDb() {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
         description TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS cell_hits_stats (
+        cell_coord TEXT PRIMARY KEY,
+        hits_count INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS first_sunk_stats (
+        ship_size INTEGER PRIMARY KEY,
+        sunk_count INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date_day);
@@ -717,6 +737,136 @@ async function getAdminStats() {
   return { usersCount, matchesCount, presetsCount };
 }
 
+async function recordCellHit(coord) {
+  if (!coord) return;
+  const clean = String(coord).trim().toUpperCase();
+  if (isPostgres) {
+    await pgPool.query(`
+      INSERT INTO cell_hits_stats (cell_coord, hits_count)
+      VALUES ($1, 1)
+      ON CONFLICT (cell_coord)
+      DO UPDATE SET hits_count = cell_hits_stats.hits_count + 1
+    `, [clean]);
+    return;
+  }
+  sqliteDb.prepare(`
+    INSERT INTO cell_hits_stats (cell_coord, hits_count)
+    VALUES (?, 1)
+    ON CONFLICT(cell_coord)
+    DO UPDATE SET hits_count = hits_count + 1
+  `).run(clean);
+}
+
+async function recordFirstSunkShip(shipSize) {
+  const size = Number(shipSize);
+  if (!size || isNaN(size) || size <= 0) return;
+  if (isPostgres) {
+    await pgPool.query(`
+      INSERT INTO first_sunk_stats (ship_size, sunk_count)
+      VALUES ($1, 1)
+      ON CONFLICT (ship_size)
+      DO UPDATE SET sunk_count = first_sunk_stats.sunk_count + 1
+    `, [size]);
+    return;
+  }
+  sqliteDb.prepare(`
+    INSERT INTO first_sunk_stats (ship_size, sunk_count)
+    VALUES (?, 1)
+    ON CONFLICT(ship_size)
+    DO UPDATE SET sunk_count = sunk_count + 1
+  `).run(size);
+}
+
+async function getBattlefieldInsights() {
+  const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+  const all100Cells = [];
+  for (let r = 1; r <= 10; r++) {
+    for (let c = 0; c < 10; c++) {
+      all100Cells.push(`${LETTERS[c]}${r}`);
+    }
+  }
+
+  let rows = [];
+  let firstSunkRows = [];
+
+  if (isPostgres) {
+    const hitsRes = await pgPool.query('SELECT cell_coord, hits_count FROM cell_hits_stats');
+    rows = hitsRes.rows;
+    const sunkRes = await pgPool.query('SELECT ship_size, sunk_count FROM first_sunk_stats ORDER BY sunk_count DESC');
+    firstSunkRows = sunkRes.rows;
+  } else {
+    rows = sqliteDb.prepare('SELECT cell_coord, hits_count FROM cell_hits_stats').all();
+    firstSunkRows = sqliteDb.prepare('SELECT ship_size, sunk_count FROM first_sunk_stats ORDER BY sunk_count DESC').all();
+  }
+
+  const hitsMap = new Map();
+  let totalHits = 0;
+  for (const r of rows) {
+    const count = Number(r.hits_count) || 0;
+    hitsMap.set(r.cell_coord, count);
+    totalHits += count;
+  }
+
+  // Find most hit cell
+  let mostHitCell = null;
+  let maxHits = -1;
+  for (const [coord, count] of hitsMap.entries()) {
+    if (count > maxHits) {
+      maxHits = count;
+      mostHitCell = coord;
+    }
+  }
+
+  // Find least hit cell (across all 100 standard cells)
+  let leastHitCell = null;
+  let minHits = Infinity;
+  for (const coord of all100Cells) {
+    const count = hitsMap.get(coord) || 0;
+    if (count < minHits) {
+      minHits = count;
+      leastHitCell = coord;
+    }
+  }
+  if (minHits === Infinity) minHits = 0;
+
+  // Most frequent first sunk ship
+  let mostCommonFirstSunk = null;
+  let firstSunkStats = {};
+  let totalFirstSunk = 0;
+  for (const row of firstSunkRows) {
+    const sz = Number(row.ship_size);
+    const cnt = Number(row.sunk_count) || 0;
+    firstSunkStats[sz] = cnt;
+    totalFirstSunk += cnt;
+  }
+
+  if (firstSunkRows.length > 0) {
+    const top = firstSunkRows[0];
+    const topSize = Number(top.ship_size);
+    const shipNames = {
+      1: 'Jednomasztowiec (1)',
+      2: 'Dwumasztowiec (2)',
+      3: 'Trójmasztowiec (3)',
+      4: 'Czteromasztowiec (4)',
+      5: 'Lotniskowiec (5)'
+    };
+    mostCommonFirstSunk = {
+      size: topSize,
+      name: shipNames[topSize] || `${topSize}-masztowiec`,
+      count: Number(top.sunk_count),
+      percent: totalFirstSunk > 0 ? Math.round((Number(top.sunk_count) / totalFirstSunk) * 100) : 0
+    };
+  }
+
+  return {
+    mostHit: mostHitCell ? { coord: mostHitCell, count: maxHits } : { coord: '—', count: 0 },
+    leastHit: leastHitCell ? { coord: leastHitCell, count: minHits } : { coord: '—', count: 0 },
+    firstSunk: mostCommonFirstSunk || { size: 0, name: 'Brak danych', count: 0, percent: 0 },
+    totalHitsRecorded: totalHits,
+    totalBattlesAnalyzed: totalFirstSunk
+  };
+}
+
 module.exports = {
   initDb,
   getUserByUsername,
@@ -742,5 +892,8 @@ module.exports = {
   getRandomBotName,
   getSystemSettings,
   updateSystemSetting,
-  getAdminStats
+  getAdminStats,
+  recordCellHit,
+  recordFirstSunkShip,
+  getBattlefieldInsights
 };

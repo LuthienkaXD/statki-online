@@ -13,7 +13,11 @@ import {
   Lock,
   Globe,
   Clock,
-  Play
+  Play,
+  Crosshair,
+  TrendingDown,
+  Anchor,
+  BarChart3
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -38,6 +42,18 @@ export default function LobbyView({
     sonar: true,
     flagshipSalvo: true
   });
+  const [battlefieldInsights, setBattlefieldInsights] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/stats/battlefield-insights')
+      .then(res => res.json())
+      .then(data => {
+        if (data && !data.error) {
+          setBattlefieldInsights(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch('/api/system/public')
@@ -95,6 +111,96 @@ export default function LobbyView({
           Wybierz rozmiar pola bitwy (10×10, 13×13, 15×15 ze statkiem L), dobierz modyfikatory taktyczne i stań do walki o panowanie na morzu!
         </p>
       </div>
+
+      {/* Battlefield Global Tactical Insights Box */}
+      {battlefieldInsights && (
+        <div className="w-full bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 mb-8 shadow-md border border-slate-700/60">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/60">
+            <div className="flex items-center space-x-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-400">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-chakra font-bold text-sm tracking-wide text-white uppercase flex items-center space-x-2">
+                  <span>Morskie Statystyki Bojowe</span>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 lowercase">
+                    na żywo
+                  </span>
+                </h3>
+              </div>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+              Ostrzelane pozycje graczy
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Najbardziej trafiane pole */}
+            <div className="bg-slate-800/60 hover:bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 flex items-center space-x-3 transition-colors">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                <Crosshair className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+                  Najczęściej trafiane
+                </div>
+                <div className="flex items-baseline space-x-2 mt-0.5">
+                  <span className="text-xl font-black font-chakra text-rose-400">
+                    {battlefieldInsights.mostHit?.coord || '—'}
+                  </span>
+                  {battlefieldInsights.mostHit?.count > 0 && (
+                    <span className="text-[10px] font-mono text-slate-400">
+                      ({battlefieldInsights.mostHit.count} {battlefieldInsights.mostHit.count === 1 ? 'trafienie' : 'trafień'})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Najrzadziej trafiane pole */}
+            <div className="bg-slate-800/60 hover:bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 flex items-center space-x-3 transition-colors">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                <TrendingDown className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+                  Najrzadziej trafiane
+                </div>
+                <div className="flex items-baseline space-x-2 mt-0.5">
+                  <span className="text-xl font-black font-chakra text-emerald-400">
+                    {battlefieldInsights.leastHit?.coord || '—'}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    ({battlefieldInsights.leastHit?.count || 0} {battlefieldInsights.leastHit?.count === 1 ? 'trafienie' : 'trafień'})
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pierwszy zatopiony statek */}
+            <div className="bg-slate-800/60 hover:bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 flex items-center space-x-3 transition-colors">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <Anchor className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+                  Pierwszy zatapiany okręt
+                </div>
+                <div className="flex items-baseline space-x-2 mt-0.5">
+                  <span className="text-base font-black font-chakra text-amber-300 truncate">
+                    {battlefieldInsights.firstSunk?.name || 'Brak danych'}
+                  </span>
+                </div>
+                {battlefieldInsights.firstSunk?.count > 0 && (
+                  <div className="text-[10px] font-mono text-amber-200/80">
+                    W {battlefieldInsights.firstSunk.percent}% bitew idzie na dno jako pierwszy
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Game Config: Board Size & Modifiers */}
       <div className="w-full bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-8 shadow-sm">

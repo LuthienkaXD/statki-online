@@ -3,10 +3,11 @@ const {
   generateRandomFleet,
   validateFleet,
   generateRandomMines,
-  processShot
+  processShot,
+  getLetters
 } = require('./gameLogic');
 const { BotAI } = require('./botAI');
-const { recordMatch } = require('./db');
+const { recordMatch, recordCellHit, recordFirstSunkShip } = require('./db');
 
 class GameRoom {
   constructor(roomId, isBotGame = false, options = {}) {
@@ -27,6 +28,7 @@ class GameRoom {
     this.turnsCount = 0;
     this.winner = null;
     this.chat = [];
+    this.firstSunkRecorded = false;
 
     // Rock Paper Scissors minigame state
     this.rps = {
@@ -336,6 +338,14 @@ class GameRoom {
     shooter.stats.shots++;
     if (shotResult.hit) {
       shooter.stats.hits++;
+      const letters = getLetters(this.boardSize);
+      const coordName = `${letters[c] || 'A'}${r + 1}`;
+      recordCellHit(coordName).catch(e => console.error('Error recording hit stat:', e));
+    }
+
+    if (shotResult.sunk && !this.firstSunkRecorded) {
+      this.firstSunkRecorded = true;
+      recordFirstSunkShip(shotResult.sunk.size).catch(e => console.error('Error recording first sunk stat:', e));
     }
 
     this.turnsCount++;
