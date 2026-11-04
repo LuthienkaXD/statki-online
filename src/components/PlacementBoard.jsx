@@ -41,6 +41,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
   // Drag-and-drop state
   const [draggedShip, setDraggedShip] = useState(null);
   const [draggedMine, setDraggedMine] = useState(false); // dragging mine from dock or board
+  const isDraggingRef = useRef(false);
 
   const fleetStyle = getFleetStyle(customColor);
   const letters = getLetters(boardSize);
@@ -126,7 +127,8 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
     };
 
     const handleWheel = (e) => {
-      if (hoverCoord || selectedDockShip || draggedShip) {
+      // Rotate ship when: dragging a ship with mouse OR holding/selected a ship from dock or board
+      if (isDraggingRef.current || draggedShip || selectedDockShip) {
         e.preventDefault();
         setIsVertical(prev => !prev);
         sounds.playClick();
@@ -242,20 +244,21 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
       return;
     }
 
-    // If clicked on existing ship with NO active ship -> pickup/drag this ship!
+    // If clicked on existing ship with NO active ship -> RETURN IT TO DOCK!
     if (clickedShipId) {
       const existing = placedShips.find(s => s.id === clickedShipId);
       if (existing) {
-        setDraggedShip(existing);
-        setIsVertical(existing.isVertical);
+        setPlacedShips(prev => prev.filter(s => s.id !== clickedShipId));
+        setDraggedShip(null);
         setSelectedDockShip(null);
-        setErrorMessage('Podniosłeś statek! Kliknij nowe pole lub obróć kółkiem myszy.');
+        setErrorMessage(`Zwrócono statek (${existing.name}) do doków.`);
       }
     }
   };
 
   // Drag and drop HTML5 handlers for board ships & mines
   const handleDragStartFromBoard = (e, ship) => {
+    isDraggingRef.current = true;
     e.dataTransfer.setData('text/plain', ship.id);
     setDraggedShip(ship);
     setIsVertical(ship.isVertical);
@@ -264,10 +267,15 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
   };
 
   const handleDragStartFromDock = (e, ship) => {
+    isDraggingRef.current = true;
     e.dataTransfer.setData('text/plain', `dock_${ship.size}_${ship.shape || 'line'}`);
     setSelectedDockShip(ship);
     setDraggedShip(null);
     setDraggedMine(false);
+  };
+
+  const handleDragEnd = () => {
+    isDraggingRef.current = false;
   };
 
   const handleDragStartMineFromDock = (e) => {
@@ -286,6 +294,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
 
   const handleDrop = (e, r, c) => {
     e.preventDefault();
+    isDraggingRef.current = false;
 
     // Check if dragging a mine
     if (draggedMine) {
@@ -515,6 +524,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                             handleDragStartMineFromBoard(e, rIdx, cIdx);
                           }
                         }}
+                        onDragEnd={handleDragEnd}
                         onDragOver={(e) => {
                           e.preventDefault();
                           if (!hoverCoord || hoverCoord.r !== rIdx || hoverCoord.c !== cIdx) {
@@ -533,7 +543,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                         className={`rounded-md border flex items-center justify-center transition-all duration-150 cursor-pointer ${cellClass}`}
                         title={
                           isOccupied
-                            ? 'Kliknij lub przeciągnij, aby przenieść w inne miejsce'
+                            ? 'Kliknij, aby zwrócić statek do doków, lub przeciągnij w inne miejsce (Scroll / R obraca)'
                             : isMineCell
                             ? 'Mina morska: przeciągnij w inne miejsce lub kliknij, aby usunąć'
                             : mineMode
@@ -621,7 +631,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
           </h3>
 
           <p className="text-xs text-slate-500 mb-3">
-            Przeciągaj statki i miny myszką z doków lub planszy. Kliknięcie postawionego statku pozwala przenieść go w inne miejsce.
+            Przeciągaj statki myszką (Scroll / R obraca statek w locie). Kliknięcie postawionego statku na planszy natychmiast zwraca go do doków.
           </p>
 
           <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
@@ -684,6 +694,7 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
                   key={`${ship.id}_${ship.size}_${ship.shape || 'line'}`}
                   draggable={!isDone}
                   onDragStart={(e) => !isDone && handleDragStartFromDock(e, ship)}
+                  onDragEnd={handleDragEnd}
                   onClick={() => {
                     if (!isDone) {
                       sounds.playClick();
