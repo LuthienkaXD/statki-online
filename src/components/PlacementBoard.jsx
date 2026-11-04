@@ -127,8 +127,8 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
     };
 
     const handleWheel = (e) => {
-      // Rotate ship when: dragging a ship with mouse OR holding/selected a ship from dock or board
-      if (isDraggingRef.current || draggedShip || selectedDockShip) {
+      // Rotate ship when: dragging a ship with mouse OR hovering over board with an active ship/dock ship
+      if (isDraggingRef.current || draggedShip || selectedDockShip || hoverCoord) {
         e.preventDefault();
         setIsVertical(prev => !prev);
         sounds.playClick();
@@ -264,6 +264,13 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
     setIsVertical(ship.isVertical);
     setSelectedDockShip(null);
     setDraggedMine(false);
+
+    // Create a compact transparent/ghost drag image so the native preview doesn't block the board
+    if (e.dataTransfer.setDragImage) {
+      const img = new Image();
+      img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1" height="1"%3E%3C/svg%3E';
+      e.dataTransfer.setDragImage(img, 0, 0);
+    }
   };
 
   const handleDragStartFromDock = (e, ship) => {
@@ -272,6 +279,12 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
     setSelectedDockShip(ship);
     setDraggedShip(null);
     setDraggedMine(false);
+
+    if (e.dataTransfer.setDragImage) {
+      const img = new Image();
+      img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1" height="1"%3E%3C/svg%3E';
+      e.dataTransfer.setDragImage(img, 0, 0);
+    }
   };
 
   const handleDragEnd = () => {
