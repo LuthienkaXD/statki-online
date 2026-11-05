@@ -469,7 +469,7 @@ class GameRoom {
 
     this.addChatMessage(
       null,
-      `🧭 ${player.name} rzucił namiar Kompasem z punktu [${originLabel}] ➔ Najbliższy wrogi okręt znajduje się na kierunku: ${directionName}!`
+      `🧭 ${player.name} rzucił namiar Busolą z punktu [${originLabel}] ➔ Najbliższy wrogi okręt znajduje się na kierunku: ${directionName}!`
     );
 
     return { success: true, direction: directionName, r, c };

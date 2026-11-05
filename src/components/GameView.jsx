@@ -424,7 +424,7 @@ export default function GameView({
               {reconActive && ' • 🛩️ Wybierz centralną kratkę do zwiadu radarem'}
               {sonarMode && ` • 📡 Kliknij na pole, by zbadać jego ${sonarMode === 'row' ? 'wiersz' : 'kolumnę'} sonarem`}
               {mineDetectorActive && ' • 🧲 Kliknij lewy górny róg pola 2×2, by wykryć wrogie miny'}
-              {compassActive && ' • 🧭 Kliknij dowolne pole, by kompas wskazał kierunek do najbliższego okrętu'}
+              {compassActive && ' • 🧭 Kliknij dowolne pole, by busola wskazała kierunek do najbliższego okrętu'}
             </p>
           </div>
         </div>
@@ -508,8 +508,8 @@ export default function GameView({
               }}
               className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
                 mineDetectorActive
-                  ? 'bg-amber-600 text-white ring-2 ring-amber-400 animate-pulse'
-                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                  ? 'bg-amber-500 text-white ring-2 ring-amber-300 animate-pulse'
+                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-300'
               }`}
               title="Trałowiec Akustyczny - skanuje kwadrat 2x2 w poszukiwaniu wrogich min morskich"
             >
@@ -518,7 +518,7 @@ export default function GameView({
             </button>
           )}
 
-          {/* Compass (Kompas Nawigacyjny) */}
+          {/* Busola (Nawigacyjna) */}
           {isMyTurn && options.compass && !me?.compassUsed && !isGameOver && (
             <button
               onClick={() => {
@@ -531,12 +531,12 @@ export default function GameView({
               className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
                 compassActive
                   ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 animate-pulse'
-                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
               }`}
-              title="Kompas Nawigacyjny - kliknij pole, by sprawdzić kierunek do najbliższego nietrafionego okrętu"
+              title="Busola - kliknij pole, by sprawdzić kierunek do najbliższego nietrafionego okrętu"
             >
               <Compass className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{compassActive ? 'Wskaż punkt' : 'Kompas'}</span>
+              <span>{compassActive ? 'Wskaż punkt' : 'Busola'}</span>
             </button>
           )}
 
