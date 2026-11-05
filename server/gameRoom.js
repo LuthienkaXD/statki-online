@@ -398,12 +398,15 @@ class GameRoom {
 
     // Znajdź wszystkie komórki wrogich statków, które:
     // 1) nie należą do zatopionego statku (!ship.sunk)
-    // 2) nie zostały jeszcze trafione (!cell.hit)
+    // 2) nie zostały jeszcze trafione (!cell.hit ani w shotsGrid)
     const aliveTargets = [];
     (enemy.ships || []).forEach(ship => {
-      if (!ship.sunk) {
+      // Ignorujemy całkowicie zatopione statki
+      const isSunk = ship.sunk || ship.cells.every(c => c.hit);
+      if (!isSunk) {
         ship.cells.forEach(cell => {
-          if (!cell.hit) {
+          const isCellHit = cell.hit || enemy.shotsGrid[cell.r]?.[cell.c] === 'hit';
+          if (!isCellHit) {
             aliveTargets.push(cell);
           }
         });
@@ -411,7 +414,7 @@ class GameRoom {
     });
 
     if (aliveTargets.length === 0) {
-      this.addChatMessage(null, `🧭 ${player.name} użył Kompasu Nawigacyjnego: Wody są puste, wszystkie okręty zostały trafione!`);
+      this.addChatMessage(null, `🧭 ${player.name} użył Busoli: Brak niezatopionych okrętów do namierzenia!`);
       return { success: true, direction: null };
     }
 

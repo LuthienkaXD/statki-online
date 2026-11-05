@@ -23,7 +23,9 @@ export default function SailorsMatchAnimation({
   myFleetColor = '#2563eb',
   enemyFleetColor = '#334155',
   status = 'playing',
-  turnsCount = 0
+  turnsCount = 0,
+  onThrowPaperBall,
+  incomingPaperBall
 }) {
   const [turnElapsedSec, setTurnElapsedSec] = useState(0);
   // Zbierające się kulki na podłodze podczas meczu
@@ -32,6 +34,7 @@ export default function SailorsMatchAnimation({
   const [flyingBall, setFlyingBall] = useState(null);
   // Manualny gest rzutu marynarza gracza
   const [manualThrowPose, setManualThrowPose] = useState(false);
+  const [enemyThrowPose, setEnemyThrowPose] = useState(false);
 
   // Reset timer on turn change or status change
   useEffect(() => {
@@ -61,11 +64,19 @@ export default function SailorsMatchAnimation({
   const isSleepPhase = turnElapsedSec >= 30 && turnElapsedSec < 90;
   const isThrowPhase = turnElapsedSec >= 90;
 
-  const enemyIsSleeping = status === 'playing' && isEnemyWaiting && isSleepPhase;
+  const enemyIsSleeping = status === 'playing' && isEnemyWaiting && isSleepPhase && !enemyThrowPose;
   const meIsSleeping = status === 'playing' && isMeWaiting && isSleepPhase && !manualThrowPose;
 
-  const enemyIsThrowing = status === 'playing' && isEnemyWaiting && isThrowPhase;
+  const enemyIsThrowing = enemyThrowPose || (status === 'playing' && isEnemyWaiting && isThrowPhase);
   const meIsThrowing = manualThrowPose || (status === 'playing' && isMeWaiting && isThrowPhase);
+
+  // Synchronizacja rzutu kulką z serwera (dla obu graczy na żywo)
+  useEffect(() => {
+    if (!incomingPaperBall) return;
+    const thrower = incomingPaperBall.fromKey === meKey ? 'me' : 'enemy';
+    const color = incomingPaperBall.color || (thrower === 'me' ? myFleetColor : enemyFleetColor);
+    triggerThrow(thrower, color);
+  }, [incomingPaperBall]);
 
   // Automatyczne rzucenie kulki papieru ze zniecierpliwienia co 20s (> 90s)
   useEffect(() => {
@@ -94,6 +105,9 @@ export default function SailorsMatchAnimation({
     if (thrower === 'me') {
       setManualThrowPose(true);
       setTimeout(() => setManualThrowPose(false), 900);
+    } else {
+      setEnemyThrowPose(true);
+      setTimeout(() => setEnemyThrowPose(false), 900);
     }
 
     setFlyingBall({
@@ -458,7 +472,11 @@ export default function SailorsMatchAnimation({
         <button
           type="button"
           onClick={() => {
-            triggerThrow('me', myFleetColor);
+            if (onThrowPaperBall) {
+              onThrowPaperBall();
+            } else {
+              triggerThrow('me', myFleetColor);
+            }
           }}
           className="w-full flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-chakra font-bold text-white transition-all transform active:scale-95 cursor-pointer shadow-xs hover:shadow-md"
           style={{ backgroundColor: myFleetColor }}

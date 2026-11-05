@@ -37,6 +37,8 @@ export default function GameView({
   onUseMineDetector,
   onUseCompass,
   onActivateSalvo,
+  onThrowPaperBall,
+  incomingPaperBall,
   boardZoom = 100
 }) {
   const [chatInput, setChatInput] = useState('');
@@ -374,7 +376,7 @@ export default function GameView({
     <div className="w-full max-w-7xl mx-auto p-2 sm:p-4 flex flex-col items-center">
       
       {/* Top Banner: Status & Tactical Actions */}
-      <div className={`w-full max-w-5xl mb-3 flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl shadow-sm border transition-all ${
+      <div className={`w-full max-w-5xl mb-3 min-h-[72px] flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl shadow-sm border transition-all ${
         isGameOver
           ? isWinner
             ? 'bg-gradient-to-r from-amber-50 to-emerald-50 border-amber-300'
@@ -637,6 +639,8 @@ export default function GameView({
             enemyFleetColor={enemyFleetStyle.hex}
             status={status}
             turnsCount={gameState.turnsCount || 0}
+            onThrowPaperBall={onThrowPaperBall}
+            incomingPaperBall={incomingPaperBall}
           />
         )}
 

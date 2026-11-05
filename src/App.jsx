@@ -18,6 +18,7 @@ export default function App() {
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [playerKey, setPlayerKey] = useState(null);
   const [gameState, setGameState] = useState(null);
+  const [incomingPaperBall, setIncomingPaperBall] = useState(null);
   const [errorNotice, setErrorNotice] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [copied, setCopied] = useState(false);
@@ -183,11 +184,20 @@ export default function App() {
       setErrorNotice(message);
     });
 
+    socket.on('paper_ball_thrown', ({ fromKey, color }) => {
+      setIncomingPaperBall({
+        fromKey,
+        color,
+        id: `incoming-${Date.now()}-${Math.random()}`
+      });
+    });
+
     return () => {
       socket.off('open_rooms_update');
       socket.off('room_created');
       socket.off('room_joined');
       socket.off('room_update');
+      socket.off('paper_ball_thrown');
       socket.off('join_error');
       socket.off('placement_error');
       socket.off('shot_error');
@@ -251,6 +261,11 @@ export default function App() {
   const handleUseCompass = (r, c) => {
     if (!socket) return;
     socket.emit('use_compass', { r, c });
+  };
+
+  const handleThrowPaperBall = () => {
+    if (!socket) return;
+    socket.emit('throw_paper_ball');
   };
 
   const handleActivateSalvo = () => {
@@ -432,6 +447,8 @@ export default function App() {
             onUseMineDetector={handleUseMineDetector}
             onUseCompass={handleUseCompass}
             onActivateSalvo={handleActivateSalvo}
+            onThrowPaperBall={handleThrowPaperBall}
+            incomingPaperBall={incomingPaperBall}
             boardZoom={boardZoom}
           />
         )}

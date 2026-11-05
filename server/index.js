@@ -585,6 +585,23 @@ io.on('connection', (socket) => {
     broadcastRoomState(room);
   });
 
+  // Throw paper ball event (visible to both players in the room)
+  socket.on('throw_paper_ball', () => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    const player = room.players[playerKey];
+    const color = player?.color || (playerKey === 'p1' ? 'blue' : 'crimson');
+
+    // Broadcast throw to all sockets in this room
+    io.to(currentRoomId).emit('paper_ball_thrown', {
+      fromKey: playerKey,
+      color,
+      timestamp: Date.now()
+    });
+  });
+
   // Compass feature
   socket.on('use_compass', ({ r, c }) => {
     if (!currentRoomId) return;
