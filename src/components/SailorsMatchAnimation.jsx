@@ -13,7 +13,7 @@ import React, { useState, useEffect } from 'react';
  * - Jeśli ruch trwa > 90 sekund:
  *   - Śpiący marynarz budzi się (zniecierpliwiony!).
  *   - Co około 20 sekund (90s, 110s, 130s...) rzuca zmiętą kulką papieru w drugiego marynarza.
- *   - Kulka leci łukiem, odbija się od drugiego marynarza i spada na podłogę.
+ *   - Kulka leci łukiem (animacja lotu), uderza w marynarza i spada na podłogę.
  *   - Kulki NIE ZNIKAJĄ, lecz gromadzą się na podłodze, pokazując na koniec jak długo gracz czekał!
  */
 export default function SailorsMatchAnimation({
@@ -27,10 +27,13 @@ export default function SailorsMatchAnimation({
   const [turnElapsedSec, setTurnElapsedSec] = useState(0);
   // Zbierające się kulki na podłodze podczas meczu
   const [paperBalls, setPaperBalls] = useState([]);
+  // Aktywna lecąca kulka w powietrzu
+  const [flyingBall, setFlyingBall] = useState(null);
 
   // Reset timer on turn change or status change
   useEffect(() => {
     setTurnElapsedSec(0);
+    setFlyingBall(null);
   }, [turn, turnsCount, status]);
 
   // Licznik sekund tury
@@ -61,32 +64,48 @@ export default function SailorsMatchAnimation({
   const enemyIsThrowing = status === 'playing' && isEnemyWaiting && isThrowPhase;
   const meIsThrowing = status === 'playing' && isMeWaiting && isThrowPhase;
 
-  // Generowanie kulki papieru co 20s począwszy od 90s (90, 110, 130, 150...)
+  // Rzucenie nowej kulki papieru co 20s (przy 90s, 110s, 130s...)
   useEffect(() => {
     if (status !== 'playing') return;
 
     if (turnElapsedSec >= 90 && (turnElapsedSec - 90) % 20 === 0) {
       const thrower = isEnemyWaiting ? 'enemy' : 'me';
-      // Docelowe miejsce na podłodze:
-      // Jeśli rzuca lewy (enemy), kulka leci w prawo (odbija się od prawego przy x≈170 i ląduje w okolicach x=130-175, y=138-142)
-      // Jeśli rzuca prawy (me), kulka leci w lewo (odbija się od lewego przy x≈45 i ląduje w okolicach x=40-85, y=138-142)
-      const baseFloorX = thrower === 'enemy' ? 145 : 65;
+      const baseFloorX = thrower === 'enemy' ? 150 : 65;
       const randomOffsetX = (Math.random() - 0.5) * 35;
       const finalX = Math.max(30, Math.min(185, baseFloorX + randomOffsetX));
       const finalY = 139 + Math.random() * 3;
       const rotation = Math.floor(Math.random() * 360);
+      const scale = 0.85 + Math.random() * 0.3;
 
-      const newBall = {
-        id: `ball-${Date.now()}-${Math.random()}`,
+      const ballId = `ball-${Date.now()}-${Math.random()}`;
+
+      // 1. Uruchom animację lecącej kulki
+      setFlyingBall({
+        id: ballId,
         from: thrower,
-        createdAt: turnElapsedSec,
-        finalX,
-        finalY,
+        targetX: finalX,
+        targetY: finalY,
         rotation,
-        scale: 0.85 + Math.random() * 0.3
-      };
+        scale
+      });
 
-      setPaperBalls(prev => [...prev, newBall]);
+      // 2. Po zakończeniu animacji lotu (850ms), umieść kulkę na stałe na podłodze
+      const landTimer = setTimeout(() => {
+        setPaperBalls(prev => [
+          ...prev,
+          {
+            id: ballId,
+            from: thrower,
+            finalX,
+            finalY,
+            rotation,
+            scale
+          }
+        ]);
+        setFlyingBall(null);
+      }, 850);
+
+      return () => clearTimeout(landTimer);
     }
   }, [turnElapsedSec, isEnemyWaiting, status]);
 
@@ -134,28 +153,52 @@ export default function SailorsMatchAnimation({
             <filter id="bubbleGlow" x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#38bdf8" floodOpacity="0.4" />
             </filter>
-            
-            {/* Animacja lotu kulki papieru z lewej do prawej */}
+
+            {/* Animacja rzutu kulką papieru po łuku (parabola) */}
             <style>{`
-              @keyframes flyFromLeft {
-                0% { transform: translate(45px, 65px) scale(0.6); opacity: 0; }
-                15% { opacity: 1; }
-                65% { transform: translate(170px, 60px) scale(1); }
-                80% { transform: translate(162px, 100px) scale(0.9); }
-                100% { transform: translate(var(--target-x), var(--target-y)) scale(0.85); opacity: 1; }
+              @keyframes arcThrowFromLeft {
+                0% {
+                  transform: translate(50px, 62px) scale(0.65) rotate(0deg);
+                  opacity: 1;
+                }
+                50% {
+                  transform: translate(110px, 25px) scale(1.05) rotate(180deg);
+                }
+                78% {
+                  transform: translate(170px, 60px) scale(0.95) rotate(270deg);
+                }
+                88% {
+                  transform: translate(163px, 105px) scale(0.9) rotate(320deg);
+                }
+                100% {
+                  transform: translate(var(--target-x), var(--target-y)) scale(0.85) rotate(360deg);
+                  opacity: 1;
+                }
               }
-              @keyframes flyFromRight {
-                0% { transform: translate(175px, 65px) scale(0.6); opacity: 0; }
-                15% { opacity: 1; }
-                65% { transform: translate(50px, 60px) scale(1); }
-                80% { transform: translate(58px, 100px) scale(0.9); }
-                100% { transform: translate(var(--target-x), var(--target-y)) scale(0.85); opacity: 1; }
+              @keyframes arcThrowFromRight {
+                0% {
+                  transform: translate(170px, 62px) scale(0.65) rotate(0deg);
+                  opacity: 1;
+                }
+                50% {
+                  transform: translate(110px, 25px) scale(1.05) rotate(-180deg);
+                }
+                78% {
+                  transform: translate(50px, 60px) scale(0.95) rotate(-270deg);
+                }
+                88% {
+                  transform: translate(57px, 105px) scale(0.9) rotate(-320deg);
+                }
+                100% {
+                  transform: translate(var(--target-x), var(--target-y)) scale(0.85) rotate(-360deg);
+                  opacity: 1;
+                }
               }
-              .paper-ball-anim-left {
-                animation: flyFromLeft 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+              .flying-paper-left {
+                animation: arcThrowFromLeft 0.85s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
               }
-              .paper-ball-anim-right {
-                animation: flyFromRight 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+              .flying-paper-right {
+                animation: arcThrowFromRight 0.85s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
               }
             `}</style>
           </defs>
@@ -252,15 +295,11 @@ export default function SailorsMatchAnimation({
                   <circle cx="0" cy="0" r="8" fill="#fed7aa" stroke="#f97316" strokeWidth="0.8" />
                   <ellipse cx="0" cy="-6" rx="9" ry="3.5" fill="#ffffff" stroke="#0284c7" strokeWidth="1" />
                   <circle cx="0" cy="-10" r="2" fill="#ef4444" />
-                  {/* Narrow annoyed eye */}
                   <circle cx="4" cy="-1" r="1.2" fill="#0f172a" />
-                  {/* Angled eyebrow */}
                   <line x1="2" y1="-4" x2="6" y2="-2" stroke="#991b1b" strokeWidth="1.3" strokeLinecap="round" />
-                  {/* Impatient frown */}
                   <path d="M 2 4 Q 5 1 7 4" fill="none" stroke="#991b1b" strokeWidth="1" strokeLinecap="round" />
                 </g>
 
-                {/* Irritation mark (💢) */}
                 <text x="24" y="-8" fill="#ef4444" fontSize="11" fontWeight="bold">💢</text>
               </g>
             ) : (
@@ -355,6 +394,26 @@ export default function SailorsMatchAnimation({
               </g>
             )}
           </g>
+
+          {/* ==================== ACTIVE FLYING PAPER BALL (IN FLIGHT) ==================== */}
+          {flyingBall && (
+            <g
+              style={{
+                '--target-x': `${flyingBall.targetX}px`,
+                '--target-y': `${flyingBall.targetY}px`
+              }}
+              className={flyingBall.from === 'enemy' ? 'flying-paper-left' : 'flying-paper-right'}
+            >
+              <polygon
+                points="-3.5,-2 0,-4.5 3.5,-3 4.5,0.5 2.5,3.8 -2,4 -4,1.5"
+                fill="#ffffff"
+                stroke="#64748b"
+                strokeWidth="0.8"
+              />
+              <line x1="-2" y1="-2" x2="1" y2="1" stroke="#cbd5e1" strokeWidth="0.6" />
+              <line x1="1" y1="1" x2="3" y2="-1" stroke="#94a3b8" strokeWidth="0.6" />
+            </g>
+          )}
 
           {/* ==================== CRUMPLED PAPER BALLS ON FLOOR ==================== */}
           {/* Zbierające się zmięte kulki papieru (nie znikają!) */}

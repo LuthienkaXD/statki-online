@@ -497,7 +497,7 @@ export default function GameView({
           )}
 
           {/* Mine Detector 2x2 (Trałowiec Akustyczny 2x2) */}
-          {isMyTurn && options.mines && options.mineDetector !== false && !me?.mineDetectorUsed && !isGameOver && (
+          {isMyTurn && options.mineDetector !== false && !me?.mineDetectorUsed && !isGameOver && (
             <button
               onClick={() => {
                 sounds.playClick();
@@ -519,7 +519,7 @@ export default function GameView({
           )}
 
           {/* Busola (Nawigacyjna) */}
-          {isMyTurn && options.compass && !me?.compassUsed && !isGameOver && (
+          {isMyTurn && options.compass !== false && !me?.compassUsed && !isGameOver && (
             <button
               onClick={() => {
                 sounds.playClick();

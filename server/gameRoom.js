@@ -18,11 +18,11 @@ class GameRoom {
     this.options = {
       mines: Boolean(options.mines),
       minesCount: Number(options.minesCount) || 2,
-      reconPlane: Boolean(options.reconPlane),
-      sonar: Boolean(options.sonar),
-      mineDetector: Boolean(options.mineDetector),
-      compass: Boolean(options.compass),
-      flagshipSalvo: Boolean(options.flagshipSalvo)
+      reconPlane: options.reconPlane !== undefined ? Boolean(options.reconPlane) : true,
+      sonar: options.sonar !== undefined ? Boolean(options.sonar) : true,
+      mineDetector: options.mineDetector !== undefined ? Boolean(options.mineDetector) : true,
+      compass: options.compass !== undefined ? Boolean(options.compass) : true,
+      flagshipSalvo: options.flagshipSalvo !== undefined ? Boolean(options.flagshipSalvo) : true
     };
 
     this.status = 'waiting'; // 'waiting', 'placement', 'rps', 'playing', 'finished'
