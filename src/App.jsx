@@ -248,6 +248,11 @@ export default function App() {
     socket.emit('use_mine_detector', { r, c });
   };
 
+  const handleUseCompass = (r, c) => {
+    if (!socket) return;
+    socket.emit('use_compass', { r, c });
+  };
+
   const handleActivateSalvo = () => {
     if (!socket) return;
     socket.emit('activate_salvo');
@@ -425,6 +430,7 @@ export default function App() {
             onUseRecon={handleUseRecon}
             onUseSonar={handleUseSonar}
             onUseMineDetector={handleUseMineDetector}
+            onUseCompass={handleUseCompass}
             onActivateSalvo={handleActivateSalvo}
             boardZoom={boardZoom}
           />

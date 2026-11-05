@@ -20,7 +20,8 @@ class GameRoom {
       minesCount: Number(options.minesCount) || 2,
       reconPlane: Boolean(options.reconPlane),
       sonar: Boolean(options.sonar),
-      mineDetector: options.mineDetector !== false,
+      mineDetector: Boolean(options.mineDetector),
+      compass: Boolean(options.compass),
       flagshipSalvo: Boolean(options.flagshipSalvo)
     };
 
@@ -66,6 +67,7 @@ class GameRoom {
         reconUsed: false,
         sonarUsed: false,
         mineDetectorUsed: false,
+        compassUsed: false,
         salvoUsed: false,
         salvoRemainingShots: 0,
         bonusTurns: 0,
@@ -91,6 +93,7 @@ class GameRoom {
       reconUsed: false,
       sonarUsed: false,
       mineDetectorUsed: false,
+      compassUsed: false,
       salvoUsed: false,
       salvoRemainingShots: 0,
       bonusTurns: 0,
@@ -382,6 +385,96 @@ class GameRoom {
     return { success: true, mineFound, r, c };
   }
 
+  // Feature: Kompas Nawigacyjny (Wskazuje kierunek do najbliższego nietrafionego statku)
+  useCompass(playerKey, r, c) {
+    if (!this.options.compass) return { error: 'Kompas wyłączony w opcjach pokoju' };
+    const player = this.players[playerKey];
+    if (player.compassUsed) return { error: 'Kompas był już wykorzystany' };
+    if (this.turn !== playerKey) return { error: 'To nie Twoja tura' };
+
+    player.compassUsed = true;
+    const enemyKey = playerKey === 'p1' ? 'p2' : 'p1';
+    const enemy = this.players[enemyKey];
+
+    // Znajdź wszystkie komórki wrogich statków, które:
+    // 1) nie należą do zatopionego statku (!ship.sunk)
+    // 2) nie zostały jeszcze trafione (!cell.hit)
+    const aliveTargets = [];
+    (enemy.ships || []).forEach(ship => {
+      if (!ship.sunk) {
+        ship.cells.forEach(cell => {
+          if (!cell.hit) {
+            aliveTargets.push(cell);
+          }
+        });
+      }
+    });
+
+    if (aliveTargets.length === 0) {
+      this.addChatMessage(null, `🧭 ${player.name} użył Kompasu Nawigacyjnego: Wody są puste, wszystkie okręty zostały trafione!`);
+      return { success: true, direction: null };
+    }
+
+    // Szukamy najbliższej komórki wg odległości euklidesowej
+    let nearestCell = null;
+    let minDistanceSq = Infinity;
+
+    for (const target of aliveTargets) {
+      const dr = target.r - r;
+      const dc = target.c - c;
+      const distSq = dr * dr + dc * dc;
+      if (distSq < minDistanceSq) {
+        minDistanceSq = distSq;
+        nearestCell = target;
+      }
+    }
+
+    const dr = nearestCell.r - r; // dodatnie = na południe (w dół), ujemne = na północ (w górę)
+    const dc = nearestCell.c - c; // dodatnie = na wschód (w prawo), ujemne = na zachód (w lewo)
+
+    let directionName = '';
+    if (dr === 0 && dc === 0) {
+      directionName = 'w tym samym punkcie (pod Tobą!)';
+    } else {
+      // Obliczanie kierunku na podstawie kąta / osi
+      // angle w radianach: Math.atan2(dr, dc)
+      // dc: oś X (wschód), dr: oś Y (południe w dół)
+      const angle = Math.atan2(dr, dc) * (180 / Math.PI); // od -180 do 180
+      // -90 to Północ (N)
+      // 0 to Wschód (E)
+      // 90 to Południe (S)
+      // 180/-180 to Zachód (W)
+
+      if (angle >= -22.5 && angle < 22.5) {
+        directionName = 'Wschód ➔';
+      } else if (angle >= 22.5 && angle < 67.5) {
+        directionName = 'Południowy-Wschód ↘';
+      } else if (angle >= 67.5 && angle < 112.5) {
+        directionName = 'Południe ⬇';
+      } else if (angle >= 112.5 && angle < 157.5) {
+        directionName = 'Południowy-Zachód ↙';
+      } else if (angle >= -67.5 && angle < -22.5) {
+        directionName = 'Północny-Wschód ↗';
+      } else if (angle >= -112.5 && angle < -67.5) {
+        directionName = 'Północ ⬆';
+      } else if (angle >= -157.5 && angle < -112.5) {
+        directionName = 'Północny-Zachód ↖';
+      } else {
+        directionName = 'Zachód ⬅';
+      }
+    }
+
+    const letters = getLetters(this.boardSize);
+    const originLabel = `${letters[c] || 'A'}${r + 1}`;
+
+    this.addChatMessage(
+      null,
+      `🧭 ${player.name} rzucił namiar Kompasem z punktu [${originLabel}] ➔ Najbliższy wrogi okręt znajduje się na kierunku: ${directionName}!`
+    );
+
+    return { success: true, direction: directionName, r, c };
+  }
+
   // Feature 3: Flagship Salvo (Double Shot when flagship is intact)
   activateFlagshipSalvo(playerKey) {
     if (!this.options.flagshipSalvo) return { error: 'Salwa flagowca wyłączona' };
@@ -587,6 +680,7 @@ class GameRoom {
         reconUsed: me.reconUsed,
         sonarUsed: me.sonarUsed,
         mineDetectorUsed: me.mineDetectorUsed,
+        compassUsed: me.compassUsed,
         salvoUsed: me.salvoUsed,
         salvoRemainingShots: me.salvoRemainingShots,
         bonusTurns: me.bonusTurns,
@@ -606,6 +700,7 @@ class GameRoom {
         reconUsed: enemy.reconUsed,
         sonarUsed: enemy.sonarUsed,
         mineDetectorUsed: enemy.mineDetectorUsed,
+        compassUsed: enemy.compassUsed,
         salvoUsed: enemy.salvoUsed
       } : null,
       chat: this.chat

@@ -218,6 +218,8 @@ app.get('/api/system/public', async (req, res) => {
         mines: settings.mod_mines_enabled !== 'false',
         reconPlane: settings.mod_recon_enabled !== 'false',
         sonar: settings.mod_sonar_enabled !== 'false',
+        mineDetector: settings.mod_mine_detector_enabled !== 'false',
+        compass: settings.mod_compass_enabled !== 'false',
         flagshipSalvo: settings.mod_salvo_enabled !== 'false'
       }
     });
@@ -225,7 +227,7 @@ app.get('/api/system/public', async (req, res) => {
     res.json({
       announcement: '',
       maintenanceMode: false,
-      modifiersConfig: { mines: true, reconPlane: true, sonar: true, flagshipSalvo: true }
+      modifiersConfig: { mines: true, reconPlane: true, sonar: true, mineDetector: true, compass: true, flagshipSalvo: true }
     });
   }
 });
@@ -583,6 +585,17 @@ io.on('connection', (socket) => {
     broadcastRoomState(room);
   });
 
+  // Compass feature
+  socket.on('use_compass', ({ r, c }) => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    const res = room.useCompass(playerKey, r, c);
+    socket.emit('compass_result', res);
+    broadcastRoomState(room);
+  });
+
   // Flagship salvo activate
   socket.on('activate_salvo', () => {
     if (!currentRoomId) return;
@@ -678,6 +691,7 @@ io.on('connection', (socket) => {
       room.players.p1.reconUsed = false;
       room.players.p1.sonarUsed = false;
       room.players.p1.mineDetectorUsed = false;
+      room.players.p1.compassUsed = false;
       room.players.p1.salvoUsed = false;
       room.players.p1.salvoRemainingShots = 0;
       room.players.p1.bonusTurns = 0;
@@ -699,6 +713,7 @@ io.on('connection', (socket) => {
         room.players.p2.reconUsed = false;
         room.players.p2.sonarUsed = false;
         room.players.p2.mineDetectorUsed = false;
+        room.players.p2.compassUsed = false;
         room.players.p2.salvoUsed = false;
         room.players.p2.salvoRemainingShots = 0;
         room.players.p2.bonusTurns = 0;
@@ -714,6 +729,7 @@ io.on('connection', (socket) => {
         room.players.p2.reconUsed = false;
         room.players.p2.sonarUsed = false;
         room.players.p2.mineDetectorUsed = false;
+        room.players.p2.compassUsed = false;
         room.players.p2.salvoUsed = false;
         room.players.p2.salvoRemainingShots = 0;
         room.players.p2.bonusTurns = 0;

@@ -18,7 +18,8 @@ import {
   Eye,
   CheckSquare,
   Square,
-  Target
+  Target,
+  Compass
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
@@ -34,6 +35,7 @@ export default function GameView({
   onUseRecon,
   onUseSonar,
   onUseMineDetector,
+  onUseCompass,
   onActivateSalvo,
   boardZoom = 100
 }) {
@@ -43,6 +45,7 @@ export default function GameView({
   const [reconActive, setReconActive] = useState(false);
   const [sonarMode, setSonarMode] = useState(null); // null | 'row' | 'col'
   const [mineDetectorActive, setMineDetectorActive] = useState(false);
+  const [compassActive, setCompassActive] = useState(false);
   const [showRematchModal, setShowRematchModal] = useState(false);
   const [hoveredCell, setHoveredCell] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -213,6 +216,13 @@ export default function GameView({
       return;
     }
 
+    if (compassActive) {
+      setCompassActive(false);
+      sounds.playClick();
+      if (onUseCompass) onUseCompass(r, c);
+      return;
+    }
+
     if (sonarMode) {
       const idx = sonarMode === 'row' ? r : c;
       const type = sonarMode;
@@ -300,6 +310,8 @@ export default function GameView({
       (c === hoveredCell.c || c === hoveredCell.c + 1)
     );
 
+    const isHoveredCompass = isMyTurn && !isGameOver && compassActive && hoveredCell && hoveredCell.r === r && hoveredCell.c === c;
+
     let cellClass = 'bg-slate-50 border-slate-300 hover:bg-slate-200/80';
     let inlineStyle = {};
 
@@ -321,6 +333,8 @@ export default function GameView({
       cellClass += ' ring-2 ring-teal-400 bg-teal-100/70 border-teal-500';
     } else if (isHoveredMineDetector && shot !== 'hit') {
       cellClass += ' ring-2 ring-amber-400 bg-amber-100/80 border-amber-500';
+    } else if (isHoveredCompass && shot !== 'hit') {
+      cellClass += ' ring-2 ring-emerald-400 bg-emerald-100/80 border-emerald-500';
     }
 
     const cellPixelSize = Math.round(26 * (boardZoom / 100));
@@ -331,14 +345,14 @@ export default function GameView({
         onClick={() => handleShoot(r, c)}
         onMouseEnter={() => setHoveredCell({ r, c })}
         onMouseLeave={() => setHoveredCell(null)}
-        disabled={!isMyTurn || isGameOver || (!reconActive && !sonarMode && !mineDetectorActive && shot !== null && shot !== undefined)}
+        disabled={!isMyTurn || isGameOver || (!reconActive && !sonarMode && !mineDetectorActive && !compassActive && shot !== null && shot !== undefined)}
         style={{
           ...inlineStyle,
           width: `${cellPixelSize}px`,
           height: `${cellPixelSize}px`
         }}
         className={`rounded border flex items-center justify-center transition-all ${
-          isMyTurn && !isGameOver && (reconActive || sonarMode || mineDetectorActive || (shot === null || shot === undefined))
+          isMyTurn && !isGameOver && (reconActive || sonarMode || mineDetectorActive || compassActive || (shot === null || shot === undefined))
             ? 'cursor-pointer hover:border-blue-500 hover:scale-105 hover:ring-2 hover:ring-blue-400'
             : ''
         } ${cellClass}`}
@@ -410,6 +424,7 @@ export default function GameView({
               {reconActive && ' • 🛩️ Wybierz centralną kratkę do zwiadu radarem'}
               {sonarMode && ` • 📡 Kliknij na pole, by zbadać jego ${sonarMode === 'row' ? 'wiersz' : 'kolumnę'} sonarem`}
               {mineDetectorActive && ' • 🧲 Kliknij lewy górny róg pola 2×2, by wykryć wrogie miny'}
+              {compassActive && ' • 🧭 Kliknij dowolne pole, by kompas wskazał kierunek do najbliższego okrętu'}
             </p>
           </div>
         </div>
@@ -420,7 +435,7 @@ export default function GameView({
           {/* Recon Plane */}
           {isMyTurn && options.reconPlane && !me?.reconUsed && !isGameOver && (
             <button
-              onClick={() => { sounds.playClick(); setReconActive(!reconActive); setSonarMode(null); setMineDetectorActive(false); }}
+              onClick={() => { sounds.playClick(); setReconActive(!reconActive); setSonarMode(null); setMineDetectorActive(false); setCompassActive(false); }}
               className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
                 reconActive
                   ? 'bg-blue-600 text-white ring-2 ring-blue-400 animate-pulse'
@@ -447,6 +462,7 @@ export default function GameView({
                   setSonarMode(sonarMode === 'row' ? null : 'row');
                   setReconActive(false);
                   setMineDetectorActive(false);
+                  setCompassActive(false);
                 }}
                 className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
                   sonarMode === 'row'
@@ -465,6 +481,7 @@ export default function GameView({
                   setSonarMode(sonarMode === 'col' ? null : 'col');
                   setReconActive(false);
                   setMineDetectorActive(false);
+                  setCompassActive(false);
                 }}
                 className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
                   sonarMode === 'col'
@@ -487,6 +504,7 @@ export default function GameView({
                 setMineDetectorActive(!mineDetectorActive);
                 setReconActive(false);
                 setSonarMode(null);
+                setCompassActive(false);
               }}
               className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
                 mineDetectorActive
@@ -497,6 +515,28 @@ export default function GameView({
             >
               <Bomb className="w-3.5 h-3.5 text-amber-600" />
               <span>{mineDetectorActive ? 'Celuj 2×2' : 'Trałowiec 2×2'}</span>
+            </button>
+          )}
+
+          {/* Compass (Kompas Nawigacyjny) */}
+          {isMyTurn && options.compass && !me?.compassUsed && !isGameOver && (
+            <button
+              onClick={() => {
+                sounds.playClick();
+                setCompassActive(!compassActive);
+                setReconActive(false);
+                setSonarMode(null);
+                setMineDetectorActive(false);
+              }}
+              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                compassActive
+                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 animate-pulse'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+              title="Kompas Nawigacyjny - kliknij pole, by sprawdzić kierunek do najbliższego nietrafionego okrętu"
+            >
+              <Compass className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{compassActive ? 'Wskaż punkt' : 'Kompas'}</span>
             </button>
           )}
 

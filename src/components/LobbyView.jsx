@@ -18,7 +18,8 @@ import {
   TrendingDown,
   Anchor,
   BarChart3,
-  Flame
+  Flame,
+  Compass
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -35,12 +36,16 @@ export default function LobbyView({
     mines: true,
     reconPlane: true,
     sonar: true,
+    mineDetector: true,
+    compass: true,
     flagshipSalvo: true
   });
   const [modifiers, setModifiers] = useState({
     mines: true,
     reconPlane: true,
     sonar: true,
+    mineDetector: true,
+    compass: true,
     flagshipSalvo: true
   });
   const [battlefieldInsights, setBattlefieldInsights] = useState(null);
@@ -66,6 +71,8 @@ export default function LobbyView({
             mines: data.modifiersConfig.mines ? prev.mines : false,
             reconPlane: data.modifiersConfig.reconPlane ? prev.reconPlane : false,
             sonar: data.modifiersConfig.sonar ? prev.sonar : false,
+            mineDetector: data.modifiersConfig.mineDetector ? prev.mineDetector : false,
+            compass: data.modifiersConfig.compass ? prev.compass : false,
             flagshipSalvo: data.modifiersConfig.flagshipSalvo ? prev.flagshipSalvo : false
           }));
         }
@@ -314,6 +321,70 @@ export default function LobbyView({
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
                       Dopóki Twój największy okręt jest nienaruszony, możesz raz na mecz oddać 2 strzały w jednej turze!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Modifier 5: Mine Detector (Trałowiec Akustyczny 2x2) */}
+                <div
+                  onClick={() => toggleModifier('mineDetector')}
+                  className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
+                    !adminConfig.mineDetector
+                      ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
+                      : modifiers.mineDetector
+                      ? 'border-yellow-500 bg-yellow-50/50 ring-1 ring-yellow-400/30 cursor-pointer'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={modifiers.mineDetector && adminConfig.mineDetector}
+                    disabled={!adminConfig.mineDetector}
+                    onChange={() => {}}
+                    className="mt-1 rounded text-yellow-600 focus:ring-yellow-500 h-4 w-4 pointer-events-none"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <Bomb className="w-3.5 h-3.5 text-yellow-600" />
+                        <span>Trałowiec 2×2 (Wykrywacz Min)</span>
+                      </span>
+                      {!adminConfig.mineDetector && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      Skanuje wybrany sektor 2×2 i wykrywa, czy kryje się tam nieodkryta mina morska.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Modifier 6: Navigation Compass */}
+                <div
+                  onClick={() => toggleModifier('compass')}
+                  className={`p-3.5 rounded-2xl border transition flex items-start space-x-3 ${
+                    !adminConfig.compass
+                      ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
+                      : modifiers.compass
+                      ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-400/30 cursor-pointer'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={modifiers.compass && adminConfig.compass}
+                    disabled={!adminConfig.compass}
+                    onChange={() => {}}
+                    className="mt-1 rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 pointer-events-none"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Kompas Nawigacyjny (Kierunek okrętu)</span>
+                      </span>
+                      {!adminConfig.compass && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      Kliknij punkt na planszy, a kompas wskaże na czacie kierunek geograficzny (np. Północ, Południowy-Wschód) do najbliższego wrogiego okrętu!
                     </p>
                   </div>
                 </div>
