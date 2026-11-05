@@ -20,6 +20,7 @@ class GameRoom {
       minesCount: Number(options.minesCount) || 2,
       reconPlane: Boolean(options.reconPlane),
       sonar: Boolean(options.sonar),
+      mineDetector: options.mineDetector !== false,
       flagshipSalvo: Boolean(options.flagshipSalvo)
     };
 
@@ -64,6 +65,7 @@ class GameRoom {
         stats: { hits: 0, shots: 0 },
         reconUsed: false,
         sonarUsed: false,
+        mineDetectorUsed: false,
         salvoUsed: false,
         salvoRemainingShots: 0,
         bonusTurns: 0,
@@ -88,6 +90,7 @@ class GameRoom {
       stats: { hits: 0, shots: 0 },
       reconUsed: false,
       sonarUsed: false,
+      mineDetectorUsed: false,
       salvoUsed: false,
       salvoRemainingShots: 0,
       bonusTurns: 0,
@@ -338,6 +341,47 @@ class GameRoom {
     return { success: true, detected, type, index };
   }
 
+  // Feature: Trałowiec Akustyczny / Wykrywacz Min 2x2
+  useMineDetector(playerKey, r, c) {
+    if (!this.options.mines) return { error: 'Miny wyłączone' };
+    const player = this.players[playerKey];
+    if (player.mineDetectorUsed) return { error: 'Wykrywacz min był już wykorzystany' };
+    if (this.turn !== playerKey) return { error: 'To nie Twoja tura' };
+
+    player.mineDetectorUsed = true;
+    const enemyKey = playerKey === 'p1' ? 'p2' : 'p1';
+    const enemy = this.players[enemyKey];
+
+    // Badamy obszar 2x2: (r, c), (r, c+1), (r+1, c), (r+1, c+1)
+    let mineFound = false;
+    for (let dr = 0; dr <= 1; dr++) {
+      for (let dc = 0; dc <= 1; dc++) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr >= 0 && nr < this.boardSize && nc >= 0 && nc < this.boardSize) {
+          // Ignorujemy zdetonowane miny (gdzie shotsGrid to 'mine')
+          const alreadyDetonated = enemy.shotsGrid[nr]?.[nc] === 'mine';
+          if (!alreadyDetonated) {
+            const hasMine = (enemy.mines || []).some(m => m.r === nr && m.c === nc);
+            if (hasMine) {
+              mineFound = true;
+            }
+          }
+        }
+      }
+    }
+
+    const letters = getLetters(this.boardSize);
+    const labelTL = `${letters[c] || 'A'}${r + 1}`;
+    const labelBR = `${letters[Math.min(c + 1, this.boardSize - 1)] || 'B'}${Math.min(r + 2, this.boardSize)}`;
+    this.addChatMessage(
+      null,
+      `🧲 ${player.name} uruchomił Trałowiec Akustyczny 2×2 w sektorze [${labelTL}-${labelBR}] ➔ ${mineFound ? '⚠️ ALARM! W SEKTORZE WYKRYTO MINĘ MORSKĄ!' : '✅ CZYSTO! Brak min w sektorze 2×2.'}`
+    );
+
+    return { success: true, mineFound, r, c };
+  }
+
   // Feature 3: Flagship Salvo (Double Shot when flagship is intact)
   activateFlagshipSalvo(playerKey) {
     if (!this.options.flagshipSalvo) return { error: 'Salwa flagowca wyłączona' };
@@ -416,11 +460,15 @@ class GameRoom {
     }
 
     if (shotResult.isMine) {
-      this.addChatMessage(null, `💥 BOOM! ${shooter.name} wpłynął na MINĘ MORSKĄ! ${target.name} otrzymuje 2 ruchy!`);
       shooter.salvoRemainingShots = 0;
       shooter.bonusTurns = 0;
-      target.bonusTurns = 1; // 1 standard turn + 1 bonus turn = 2 turns guaranteed!
+      // Trafienie miny daje przeciwnikowi +2 ruchy (1 tura + bonusTurns).
+      // Jeśli przeciwnik trafił już minę wcześniej lub trafiono 2 miny pod rząd,
+      // dodatkowe ruchy sumują się (+1 do bonusTurns za każdą minę):
+      target.bonusTurns = (target.bonusTurns || 0) + 1;
       this.turn = targetKey;
+      const totalTurns = 1 + target.bonusTurns;
+      this.addChatMessage(null, `💥 BOOM! ${shooter.name} wpłynął na MINĘ MORSKĄ! ${target.name} otrzymuje dodatkowe ruchy (łącznie ruchów: ${totalTurns})!`);
     } else if (shotResult.hit) {
       if (shotResult.allSunk) {
         this.status = 'finished';
@@ -538,6 +586,7 @@ class GameRoom {
         stats: me.stats,
         reconUsed: me.reconUsed,
         sonarUsed: me.sonarUsed,
+        mineDetectorUsed: me.mineDetectorUsed,
         salvoUsed: me.salvoUsed,
         salvoRemainingShots: me.salvoRemainingShots,
         bonusTurns: me.bonusTurns,
@@ -556,6 +605,7 @@ class GameRoom {
         totalShipsRemaining: (enemy.ships || []).filter(s => !s.sunk).length,
         reconUsed: enemy.reconUsed,
         sonarUsed: enemy.sonarUsed,
+        mineDetectorUsed: enemy.mineDetectorUsed,
         salvoUsed: enemy.salvoUsed
       } : null,
       chat: this.chat

@@ -243,6 +243,11 @@ export default function App() {
     socket.emit('use_sonar', { type, index });
   };
 
+  const handleUseMineDetector = (r, c) => {
+    if (!socket) return;
+    socket.emit('use_mine_detector', { r, c });
+  };
+
   const handleActivateSalvo = () => {
     if (!socket) return;
     socket.emit('activate_salvo');
@@ -258,9 +263,9 @@ export default function App() {
     socket.emit('send_chat', { text });
   };
 
-  const handleRematch = () => {
+  const handleRematch = (boardSize) => {
     if (!socket) return;
-    socket.emit('rematch_request');
+    socket.emit('rematch_request', { boardSize });
   };
 
   const handleLeaveRoom = () => {
@@ -419,6 +424,7 @@ export default function App() {
             onLeaveRoom={handleLeaveRoom}
             onUseRecon={handleUseRecon}
             onUseSonar={handleUseSonar}
+            onUseMineDetector={handleUseMineDetector}
             onActivateSalvo={handleActivateSalvo}
             boardZoom={boardZoom}
           />

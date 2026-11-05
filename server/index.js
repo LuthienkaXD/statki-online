@@ -572,6 +572,17 @@ io.on('connection', (socket) => {
     broadcastRoomState(room);
   });
 
+  // Mine detector 2x2
+  socket.on('use_mine_detector', ({ r, c }) => {
+    if (!currentRoomId) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    const res = room.useMineDetector(playerKey, r, c);
+    socket.emit('mine_detector_result', res);
+    broadcastRoomState(room);
+  });
+
   // Flagship salvo activate
   socket.on('activate_salvo', () => {
     if (!currentRoomId) return;
@@ -632,10 +643,17 @@ io.on('connection', (socket) => {
   });
 
   // Rematch / Restart
-  socket.on('rematch_request', () => {
+  socket.on('rematch_request', ({ boardSize } = {}) => {
     if (!currentRoomId) return;
     const room = activeRooms.get(currentRoomId);
     if (!room) return;
+
+    // Aktualizacja rozmiaru planszy, jeśli gracz wybrał nowy rozmiar przy rewanżu
+    const validSizes = [10, 13, 15];
+    const newBoardSize = Number(boardSize);
+    if (validSizes.includes(newBoardSize)) {
+      room.boardSize = newBoardSize;
+    }
 
     // Reset game state for rematch
     room.status = 'placement';
@@ -659,6 +677,7 @@ io.on('connection', (socket) => {
       room.players.p1.stats = { hits: 0, shots: 0 };
       room.players.p1.reconUsed = false;
       room.players.p1.sonarUsed = false;
+      room.players.p1.mineDetectorUsed = false;
       room.players.p1.salvoUsed = false;
       room.players.p1.salvoRemainingShots = 0;
       room.players.p1.bonusTurns = 0;
@@ -679,6 +698,7 @@ io.on('connection', (socket) => {
         room.players.p2.stats = { hits: 0, shots: 0 };
         room.players.p2.reconUsed = false;
         room.players.p2.sonarUsed = false;
+        room.players.p2.mineDetectorUsed = false;
         room.players.p2.salvoUsed = false;
         room.players.p2.salvoRemainingShots = 0;
         room.players.p2.bonusTurns = 0;
@@ -693,6 +713,7 @@ io.on('connection', (socket) => {
         room.players.p2.stats = { hits: 0, shots: 0 };
         room.players.p2.reconUsed = false;
         room.players.p2.sonarUsed = false;
+        room.players.p2.mineDetectorUsed = false;
         room.players.p2.salvoUsed = false;
         room.players.p2.salvoRemainingShots = 0;
         room.players.p2.bonusTurns = 0;
@@ -700,7 +721,7 @@ io.on('connection', (socket) => {
       }
     }
 
-    room.addChatMessage(null, 'Nowa bitwa! Rozstawcie swoje statki.');
+    room.addChatMessage(null, `Nowa bitwa (Plansza ${room.boardSize}×${room.boardSize})! Rozstawcie swoje statki.`);
     broadcastRoomState(room);
   });
 

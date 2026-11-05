@@ -33,6 +33,7 @@ export default function GameView({
   onLeaveRoom,
   onUseRecon,
   onUseSonar,
+  onUseMineDetector,
   onActivateSalvo,
   boardZoom = 100
 }) {
@@ -41,6 +42,8 @@ export default function GameView({
   const [freeTextAllowed, setFreeTextAllowed] = useState(true);
   const [reconActive, setReconActive] = useState(false);
   const [sonarMode, setSonarMode] = useState(null); // null | 'row' | 'col'
+  const [mineDetectorActive, setMineDetectorActive] = useState(false);
+  const [showRematchModal, setShowRematchModal] = useState(false);
   const [hoveredCell, setHoveredCell] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showRemainingShips, setShowRemainingShips] = useState(true);
@@ -203,6 +206,13 @@ export default function GameView({
       return;
     }
 
+    if (mineDetectorActive) {
+      setMineDetectorActive(false);
+      sounds.playClick();
+      if (onUseMineDetector) onUseMineDetector(r, c);
+      return;
+    }
+
     if (sonarMode) {
       const idx = sonarMode === 'row' ? r : c;
       const type = sonarMode;
@@ -285,6 +295,11 @@ export default function GameView({
       (sonarMode === 'col' && hoveredCell.c === c)
     );
 
+    const isHoveredMineDetector = isMyTurn && !isGameOver && mineDetectorActive && hoveredCell && (
+      (r === hoveredCell.r || r === hoveredCell.r + 1) &&
+      (c === hoveredCell.c || c === hoveredCell.c + 1)
+    );
+
     let cellClass = 'bg-slate-50 border-slate-300 hover:bg-slate-200/80';
     let inlineStyle = {};
 
@@ -304,6 +319,8 @@ export default function GameView({
 
     if (isHoveredSonar && shot !== 'hit') {
       cellClass += ' ring-2 ring-teal-400 bg-teal-100/70 border-teal-500';
+    } else if (isHoveredMineDetector && shot !== 'hit') {
+      cellClass += ' ring-2 ring-amber-400 bg-amber-100/80 border-amber-500';
     }
 
     const cellPixelSize = Math.round(26 * (boardZoom / 100));
@@ -314,14 +331,14 @@ export default function GameView({
         onClick={() => handleShoot(r, c)}
         onMouseEnter={() => setHoveredCell({ r, c })}
         onMouseLeave={() => setHoveredCell(null)}
-        disabled={!isMyTurn || isGameOver || (!reconActive && !sonarMode && shot !== null && shot !== undefined)}
+        disabled={!isMyTurn || isGameOver || (!reconActive && !sonarMode && !mineDetectorActive && shot !== null && shot !== undefined)}
         style={{
           ...inlineStyle,
           width: `${cellPixelSize}px`,
           height: `${cellPixelSize}px`
         }}
         className={`rounded border flex items-center justify-center transition-all ${
-          isMyTurn && !isGameOver && (reconActive || sonarMode || (shot === null || shot === undefined))
+          isMyTurn && !isGameOver && (reconActive || sonarMode || mineDetectorActive || (shot === null || shot === undefined))
             ? 'cursor-pointer hover:border-blue-500 hover:scale-105 hover:ring-2 hover:ring-blue-400'
             : ''
         } ${cellClass}`}
@@ -392,6 +409,7 @@ export default function GameView({
               Plansza {boardSize}×{boardSize}
               {reconActive && ' • 🛩️ Wybierz centralną kratkę do zwiadu radarem'}
               {sonarMode && ` • 📡 Kliknij na pole, by zbadać jego ${sonarMode === 'row' ? 'wiersz' : 'kolumnę'} sonarem`}
+              {mineDetectorActive && ' • 🧲 Kliknij lewy górny róg pola 2×2, by wykryć wrogie miny'}
             </p>
           </div>
         </div>
@@ -402,7 +420,7 @@ export default function GameView({
           {/* Recon Plane */}
           {isMyTurn && options.reconPlane && !me?.reconUsed && !isGameOver && (
             <button
-              onClick={() => { sounds.playClick(); setReconActive(!reconActive); setSonarMode(null); }}
+              onClick={() => { sounds.playClick(); setReconActive(!reconActive); setSonarMode(null); setMineDetectorActive(false); }}
               className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
                 reconActive
                   ? 'bg-blue-600 text-white ring-2 ring-blue-400 animate-pulse'
@@ -428,6 +446,7 @@ export default function GameView({
                   sounds.playClick();
                   setSonarMode(sonarMode === 'row' ? null : 'row');
                   setReconActive(false);
+                  setMineDetectorActive(false);
                 }}
                 className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
                   sonarMode === 'row'
@@ -445,6 +464,7 @@ export default function GameView({
                   sounds.playClick();
                   setSonarMode(sonarMode === 'col' ? null : 'col');
                   setReconActive(false);
+                  setMineDetectorActive(false);
                 }}
                 className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
                   sonarMode === 'col'
@@ -457,6 +477,27 @@ export default function GameView({
                 <span>Kolumna</span>
               </button>
             </div>
+          )}
+
+          {/* Mine Detector 2x2 (Trałowiec Akustyczny 2x2) */}
+          {isMyTurn && options.mines && options.mineDetector !== false && !me?.mineDetectorUsed && !isGameOver && (
+            <button
+              onClick={() => {
+                sounds.playClick();
+                setMineDetectorActive(!mineDetectorActive);
+                setReconActive(false);
+                setSonarMode(null);
+              }}
+              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                mineDetectorActive
+                  ? 'bg-amber-600 text-white ring-2 ring-amber-400 animate-pulse'
+                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+              }`}
+              title="Trałowiec Akustyczny - skanuje kwadrat 2x2 w poszukiwaniu wrogich min morskich"
+            >
+              <Bomb className="w-3.5 h-3.5 text-amber-600" />
+              <span>{mineDetectorActive ? 'Celuj 2×2' : 'Trałowiec 2×2'}</span>
+            </button>
           )}
 
           {/* Flagship Salvo Double Shot */}
@@ -480,9 +521,9 @@ export default function GameView({
           )}
 
           {isGameOver ? (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 relative">
               <button
-                onClick={() => { sounds.playClick(); onRematch(); }}
+                onClick={() => { sounds.playClick(); setShowRematchModal(true); }}
                 className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold font-chakra text-xs shadow-xs transition cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -494,6 +535,50 @@ export default function GameView({
               >
                 Menu
               </button>
+
+              {/* Okienko wyboru wielkości planszy przy rewanżu */}
+              {showRematchModal && (
+                <div className="absolute right-0 top-12 z-50 bg-white border-2 border-blue-500 rounded-2xl shadow-2xl p-4 w-64 text-left animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-chakra font-bold text-xs text-slate-900 uppercase">Wybierz rozmiar planszy</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowRematchModal(false)}
+                      className="text-slate-400 hover:text-slate-600 text-xs font-bold px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    Wybierz wielkość akwenu do następnej bitwy:
+                  </p>
+                  <div className="flex flex-col space-y-1.5">
+                    {[
+                      { size: 10, label: '10×10 (Klasyczna)', desc: 'Standardowy akwen, 10 okrętów' },
+                      { size: 13, label: '13×13 (Rozszerzona)', desc: 'Większy akwen, w tym 5-masztowiec' },
+                      { size: 15, label: '15×15 (Epicka)', desc: 'Wielka bitwa morska + Pancernik L' }
+                    ].map(opt => (
+                      <button
+                        key={opt.size}
+                        type="button"
+                        onClick={() => {
+                          sounds.playClick();
+                          setShowRematchModal(false);
+                          onRematch(opt.size);
+                        }}
+                        className={`w-full text-left p-2 rounded-xl border transition cursor-pointer flex flex-col ${
+                          boardSize === opt.size
+                            ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-300'
+                            : 'bg-white hover:bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <span className="font-chakra font-bold text-xs text-slate-800">{opt.label}</span>
+                        <span className="text-[10px] text-slate-500">{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             !isBotGame && (
