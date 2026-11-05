@@ -384,7 +384,7 @@ export default function LobbyView({
                       {!adminConfig.compass && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
                     </div>
                     <p className="text-[11px] text-slate-700 dark:text-slate-200 font-medium mt-1 leading-snug">
-                      Kliknij punkt na planszy, a busola wskaże na czacie kierunek geograficzny (np. Północ, Południowy-Wschód) do najbliższego wrogiego okrętu!
+                      Kliknij punkt na planszy, a busola wskaże na czacie kierunek geograficzny do najbliższego wrogiego okrętu. Działa do momentu, gdy zostają 2 statki wroga – gdy zostaje ostatni 1 statek, busola się wyłącza!
                     </p>
                   </div>
                 </div>

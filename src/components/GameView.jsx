@@ -524,21 +524,29 @@ export default function GameView({
           {isMyTurn && !me?.compassUsed && !isGameOver && (
             <button
               onClick={() => {
+                if (enemySurvivingShips.length <= 1) return;
                 sounds.playClick();
                 setCompassActive(!compassActive);
                 setReconActive(false);
                 setSonarMode(null);
                 setMineDetectorActive(false);
               }}
-              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
-                compassActive
-                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 animate-pulse'
-                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
+              disabled={enemySurvivingShips.length <= 1}
+              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-xs ${
+                enemySurvivingShips.length <= 1
+                  ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                  : compassActive
+                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 animate-pulse cursor-pointer'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 cursor-pointer'
               }`}
-              title="Busola - kliknij pole, by sprawdzić kierunek do najbliższego nietrafionego okrętu"
+              title={
+                enemySurvivingShips.length <= 1
+                  ? 'Busola wyłączona – na planszy pozostał już tylko 1 wrogi okręt!'
+                  : 'Busola - kliknij pole, by sprawdzić kierunek do najbliższego nietrafionego okrętu'
+              }
             >
               <Compass className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{compassActive ? 'Wskaż punkt' : 'Busola'}</span>
+              <span>{enemySurvivingShips.length <= 1 ? 'Busola Niedostępna' : compassActive ? 'Wskaż punkt' : 'Busola'}</span>
             </button>
           )}
 

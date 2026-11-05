@@ -387,14 +387,21 @@ class GameRoom {
 
   // Feature: Kompas Nawigacyjny (Wskazuje kierunek do najbliższego nietrafionego statku)
   useCompass(playerKey, r, c) {
-    if (!this.options.compass) return { error: 'Kompas wyłączony w opcjach pokoju' };
+    if (!this.options.compass) return { error: 'Busola wyłączona w opcjach pokoju' };
     const player = this.players[playerKey];
-    if (player.compassUsed) return { error: 'Kompas był już wykorzystany' };
+    if (player.compassUsed) return { error: 'Busola była już wykorzystana' };
     if (this.turn !== playerKey) return { error: 'To nie Twoja tura' };
 
-    player.compassUsed = true;
     const enemyKey = playerKey === 'p1' ? 'p2' : 'p1';
     const enemy = this.players[enemyKey];
+
+    // Sprawdź ile niezatopionych okrętów wroga zostało na planszy
+    const unsunkEnemyShips = (enemy.ships || []).filter(ship => !ship.sunk && !ship.cells.every(c => c.hit));
+    if (unsunkEnemyShips.length <= 1) {
+      return { error: 'Busola jest niedostępna – na planszy pozostał tylko 1 okręt wroga!' };
+    }
+
+    player.compassUsed = true;
 
     // Znajdź wszystkie komórki wrogich statków, które:
     // 1) nie należą do zatopionego statku (!ship.sunk)
