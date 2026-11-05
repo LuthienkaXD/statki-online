@@ -122,8 +122,6 @@ app.post('/api/auth/login', async (req, res) => {
         custom_color: user.custom_color || '#2563eb'
       }
     });
-      }
-    });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Błąd serwera podczas logowania.' });
