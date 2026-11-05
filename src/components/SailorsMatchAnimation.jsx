@@ -14,7 +14,8 @@ import React, { useState, useEffect } from 'react';
  *   - Śpiący marynarz budzi się (zniecierpliwiony!).
  *   - Co około 20 sekund (90s, 110s, 130s...) rzuca zmiętą kulką papieru w drugiego marynarza.
  *   - Kulka leci łukiem (animacja lotu), uderza w marynarza i spada na podłogę.
- *   - Kulki NIE ZNIKAJĄ, lecz gromadzą się na podłodze, pokazując na koniec jak długo gracz czekał!
+ * - Pod animacją znajduje się PRZYCISK „Rzuć kulką papieru!” umożliwiający graczowi manualne rzucanie kulką w kolorze jego floty!
+ * - Kulki NIE ZNIKAJĄ, lecz gromadzą się na podłodze, pokazując na koniec jak długo gracz czekał!
  */
 export default function SailorsMatchAnimation({
   turn,
@@ -29,6 +30,8 @@ export default function SailorsMatchAnimation({
   const [paperBalls, setPaperBalls] = useState([]);
   // Aktywna lecąca kulka w powietrzu
   const [flyingBall, setFlyingBall] = useState(null);
+  // Manualny gest rzutu marynarza gracza
+  const [manualThrowPose, setManualThrowPose] = useState(false);
 
   // Reset timer on turn change or status change
   useEffect(() => {
@@ -59,55 +62,66 @@ export default function SailorsMatchAnimation({
   const isThrowPhase = turnElapsedSec >= 90;
 
   const enemyIsSleeping = status === 'playing' && isEnemyWaiting && isSleepPhase;
-  const meIsSleeping = status === 'playing' && isMeWaiting && isSleepPhase;
+  const meIsSleeping = status === 'playing' && isMeWaiting && isSleepPhase && !manualThrowPose;
 
   const enemyIsThrowing = status === 'playing' && isEnemyWaiting && isThrowPhase;
-  const meIsThrowing = status === 'playing' && isMeWaiting && isThrowPhase;
+  const meIsThrowing = manualThrowPose || (status === 'playing' && isMeWaiting && isThrowPhase);
 
-  // Rzucenie nowej kulki papieru co 20s (przy 90s, 110s, 130s...)
+  // Automatyczne rzucenie kulki papieru ze zniecierpliwienia co 20s (> 90s)
   useEffect(() => {
     if (status !== 'playing') return;
 
     if (turnElapsedSec >= 90 && (turnElapsedSec - 90) % 20 === 0) {
       const thrower = isEnemyWaiting ? 'enemy' : 'me';
-      const baseFloorX = thrower === 'enemy' ? 150 : 65;
-      const randomOffsetX = (Math.random() - 0.5) * 35;
-      const finalX = Math.max(30, Math.min(185, baseFloorX + randomOffsetX));
-      const finalY = 139 + Math.random() * 3;
-      const rotation = Math.floor(Math.random() * 360);
-      const scale = 0.85 + Math.random() * 0.3;
-
-      const ballId = `ball-${Date.now()}-${Math.random()}`;
-
-      // 1. Uruchom animację lecącej kulki
-      setFlyingBall({
-        id: ballId,
-        from: thrower,
-        targetX: finalX,
-        targetY: finalY,
-        rotation,
-        scale
-      });
-
-      // 2. Po zakończeniu animacji lotu (850ms), umieść kulkę na stałe na podłodze
-      const landTimer = setTimeout(() => {
-        setPaperBalls(prev => [
-          ...prev,
-          {
-            id: ballId,
-            from: thrower,
-            finalX,
-            finalY,
-            rotation,
-            scale
-          }
-        ]);
-        setFlyingBall(null);
-      }, 850);
-
-      return () => clearTimeout(landTimer);
+      const color = thrower === 'enemy' ? enemyFleetColor : myFleetColor;
+      triggerThrow(thrower, color);
     }
   }, [turnElapsedSec, isEnemyWaiting, status]);
+
+  // Funkcja rzucająca kulkę (zarówno automatycznie jak i z przycisku)
+  const triggerThrow = (thrower = 'me', color = myFleetColor) => {
+    // Cel na podłodze:
+    // enemy rzuca w prawo (dąży do x ≈ 135-175, y ≈ 139-142)
+    // me rzuca w lewo (dąży do x ≈ 45-85, y ≈ 139-142)
+    const baseFloorX = thrower === 'enemy' ? 150 : 65;
+    const randomOffsetX = (Math.random() - 0.5) * 35;
+    const finalX = Math.max(30, Math.min(185, baseFloorX + randomOffsetX));
+    const finalY = 139 + Math.random() * 3;
+    const rotation = Math.floor(Math.random() * 360);
+    const scale = 0.85 + Math.random() * 0.3;
+    const ballId = `ball-${Date.now()}-${Math.random()}`;
+
+    if (thrower === 'me') {
+      setManualThrowPose(true);
+      setTimeout(() => setManualThrowPose(false), 900);
+    }
+
+    setFlyingBall({
+      id: ballId,
+      from: thrower,
+      color,
+      targetX: finalX,
+      targetY: finalY,
+      rotation,
+      scale
+    });
+
+    setTimeout(() => {
+      setPaperBalls(prev => [
+        ...prev,
+        {
+          id: ballId,
+          from: thrower,
+          color,
+          finalX,
+          finalY,
+          rotation,
+          scale
+        }
+      ]);
+      setFlyingBall(null);
+    }, 850);
+  };
 
   return (
     <div className="w-full xl:w-64 shrink-0 flex flex-col items-center bg-transparent border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-3.5 shadow-xs select-none">
@@ -353,7 +367,7 @@ export default function SailorsMatchAnimation({
                 </g>
               </g>
             ) : meIsThrowing ? (
-              // AWAKE & THROWING / ANNOYED STATE (>= 90s)
+              // AWAKE & THROWING / ANNOYED STATE (>= 90s or manual throw)
               <g transform="translate(178, 58)">
                 <path d="M -8 38 L -20 39 L -22 74" fill="none" stroke="#1e293b" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M -8 38 L -18 12" stroke={myFleetColor} strokeWidth="12" strokeLinecap="round" />
@@ -406,37 +420,52 @@ export default function SailorsMatchAnimation({
             >
               <polygon
                 points="-3.5,-2 0,-4.5 3.5,-3 4.5,0.5 2.5,3.8 -2,4 -4,1.5"
-                fill="#ffffff"
-                stroke="#64748b"
+                fill={flyingBall.color || '#ffffff'}
+                stroke={flyingBall.color ? '#0f172a' : '#64748b'}
                 strokeWidth="0.8"
               />
-              <line x1="-2" y1="-2" x2="1" y2="1" stroke="#cbd5e1" strokeWidth="0.6" />
-              <line x1="1" y1="1" x2="3" y2="-1" stroke="#94a3b8" strokeWidth="0.6" />
+              <line x1="-2" y1="-2" x2="1" y2="1" stroke="#ffffff" strokeWidth="0.6" opacity="0.6" />
+              <line x1="1" y1="1" x2="3" y2="-1" stroke="#ffffff" strokeWidth="0.6" opacity="0.6" />
             </g>
           )}
 
           {/* ==================== CRUMPLED PAPER BALLS ON FLOOR ==================== */}
-          {/* Zbierające się zmięte kulki papieru (nie znikają!) */}
+          {/* Zbierające się zmięte kulki papieru (nie znikają!) w kolorze rzucającego */}
           {paperBalls.map((ball) => (
             <g
               key={ball.id}
               transform={`translate(${ball.finalX}, ${ball.finalY}) rotate(${ball.rotation}) scale(${ball.scale})`}
               className="drop-shadow-xs transition-opacity duration-500"
             >
-              {/* Zmięty wielokąt papieru */}
+              {/* Zmięty wielokąt papieru w kolorze floty gracza */}
               <polygon
                 points="-3.5,-2 0,-4.5 3.5,-3 4.5,0.5 2.5,3.8 -2,4 -4,1.5"
-                fill="#f8fafc"
-                stroke="#94a3b8"
-                strokeWidth="0.6"
+                fill={ball.color || '#f8fafc'}
+                stroke={ball.color ? '#1e293b' : '#94a3b8'}
+                strokeWidth="0.7"
               />
               {/* Zagięcia papieru */}
-              <line x1="-2" y1="-2" x2="1" y2="1" stroke="#cbd5e1" strokeWidth="0.5" />
-              <line x1="1" y1="1" x2="3" y2="-1" stroke="#94a3b8" strokeWidth="0.5" />
-              <line x1="-1" y1="2" x2="2" y2="3" stroke="#cbd5e1" strokeWidth="0.5" />
+              <line x1="-2" y1="-2" x2="1" y2="1" stroke="#ffffff" strokeWidth="0.5" opacity="0.7" />
+              <line x1="1" y1="1" x2="3" y2="-1" stroke="#ffffff" strokeWidth="0.5" opacity="0.7" />
+              <line x1="-1" y1="2" x2="2" y2="3" stroke="#ffffff" strokeWidth="0.5" opacity="0.7" />
             </g>
           ))}
         </svg>
+      </div>
+
+      {/* Przycisk rzucenia kulką papieru pod animacją */}
+      <div className="w-full mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-center">
+        <button
+          type="button"
+          onClick={() => {
+            triggerThrow('me', myFleetColor);
+          }}
+          className="w-full flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-chakra font-bold text-white transition-all transform active:scale-95 cursor-pointer shadow-xs hover:shadow-md"
+          style={{ backgroundColor: myFleetColor }}
+          title="Rzuć zmiętą kulką papieru w przeciwnika!"
+        >
+          <span>🏐 Rzuć Kulką Papieru!</span>
+        </button>
       </div>
     </div>
   );

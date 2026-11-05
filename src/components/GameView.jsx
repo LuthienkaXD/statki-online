@@ -519,7 +519,7 @@ export default function GameView({
           )}
 
           {/* Busola (Nawigacyjna) */}
-          {isMyTurn && options.compass !== false && !me?.compassUsed && !isGameOver && (
+          {isMyTurn && !me?.compassUsed && !isGameOver && (
             <button
               onClick={() => {
                 sounds.playClick();
@@ -620,17 +620,7 @@ export default function GameView({
                 </div>
               )}
             </div>
-          ) : (
-            !isBotGame && (
-              <button
-                onClick={copyRoomLink}
-                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-700 border border-slate-200 text-xs font-semibold transition cursor-pointer"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Skopiowano!' : 'Kopiuj link'}</span>
-              </button>
-            )
-          )}
+          ) : null}
         </div>
 
       </div>
