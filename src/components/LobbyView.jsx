@@ -332,7 +332,7 @@ export default function LobbyView({
                     !adminConfig.mineDetector
                       ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
                       : modifiers.mineDetector
-                      ? 'border-amber-400 bg-amber-500/10 ring-1 ring-amber-400/40 cursor-pointer'
+                      ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 ring-1 ring-amber-400 cursor-pointer shadow-xs'
                       : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
                   }`}
                 >
@@ -341,17 +341,17 @@ export default function LobbyView({
                     checked={modifiers.mineDetector && adminConfig.mineDetector}
                     disabled={!adminConfig.mineDetector}
                     onChange={() => {}}
-                    className="mt-1 rounded text-amber-500 focus:ring-amber-500 h-4 w-4 pointer-events-none"
+                    className="mt-1 rounded text-amber-600 focus:ring-amber-500 h-4 w-4 pointer-events-none"
                   />
                   <div className="flex-1">
                     <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
                       <span className="flex items-center space-x-1.5">
-                        <Bomb className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-amber-600 dark:text-amber-400 font-extrabold">Trałowiec 2×2 (Wykrywacz Min)</span>
+                        <Bomb className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                        <span className="text-amber-800 dark:text-amber-300 font-extrabold">Trałowiec 2×2 (Wykrywacz Min)</span>
                       </span>
                       {!adminConfig.mineDetector && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
                     </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-snug">
+                    <p className="text-[11px] text-slate-700 dark:text-slate-200 font-medium mt-1 leading-snug">
                       Skanuje wybrany sektor 2×2 i wykrywa, czy kryje się tam nieodkryta mina morska.
                     </p>
                   </div>
@@ -364,7 +364,7 @@ export default function LobbyView({
                     !adminConfig.compass
                       ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed'
                       : modifiers.compass
-                      ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-400/40 cursor-pointer'
+                      ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 ring-1 ring-emerald-400 cursor-pointer shadow-xs'
                       : 'border-slate-200 bg-white hover:bg-slate-50 cursor-pointer'
                   }`}
                 >
@@ -378,12 +378,12 @@ export default function LobbyView({
                   <div className="flex-1">
                     <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
                       <span className="flex items-center space-x-1.5">
-                        <Compass className="w-3.5 h-3.5 text-emerald-500" />
-                        <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">Busola (Kierunek okrętu)</span>
+                        <Compass className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+                        <span className="text-emerald-800 dark:text-emerald-300 font-extrabold">Busola (Kierunek okrętu)</span>
                       </span>
                       {!adminConfig.compass && <Lock className="w-3 h-3 text-slate-400" title="Wyłączone przez admina" />}
                     </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-snug">
+                    <p className="text-[11px] text-slate-700 dark:text-slate-200 font-medium mt-1 leading-snug">
                       Kliknij punkt na planszy, a busola wskaże na czacie kierunek geograficzny (np. Północ, Południowy-Wschód) do najbliższego wrogiego okrętu!
                     </p>
                   </div>
