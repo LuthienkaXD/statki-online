@@ -288,6 +288,34 @@ export default function App() {
     socket.emit('rematch_request', { boardSize });
   };
 
+  const handleSaveUserColor = (color) => {
+    if (!color) return;
+    const token = localStorage.getItem('battleship_token');
+    if (token) {
+      fetch('/api/auth/color', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ color })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.user) {
+            setUser(prev => ({ ...prev, custom_color: color }));
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
+  const handleChangeFleetColor = (color) => {
+    if (!socket || !color) return;
+    socket.emit('change_fleet_color', { color });
+    handleSaveUserColor(color);
+  };
+
   const handleLeaveRoom = () => {
     sounds.playClick();
     setCurrentRoomId(null);
@@ -423,6 +451,8 @@ export default function App() {
               boardSize={gameState.boardSize || 10}
               options={gameState.options || {}}
               boardZoom={boardZoom}
+              initialColor={user?.custom_color || '#2563eb'}
+              onColorChange={handleSaveUserColor}
             />
           )
         ) : gameState.status === 'rps' ? (
@@ -449,6 +479,7 @@ export default function App() {
             onActivateSalvo={handleActivateSalvo}
             onThrowPaperBall={handleThrowPaperBall}
             incomingPaperBall={incomingPaperBall}
+            onChangeFleetColor={handleChangeFleetColor}
             boardZoom={boardZoom}
           />
         )}

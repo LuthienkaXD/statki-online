@@ -10,6 +10,7 @@ const {
   getUserByUsername,
   createUser,
   getUserById,
+  updateUserColor,
   getDailyLeaderboard,
   getAllTimeLeaderboard,
   getBotLeaderboard,
@@ -85,7 +86,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const user = await createUser(username.trim(), hashPassword(password));
     const token = generateToken(user);
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role, wins: user.wins, losses: user.losses, botWins: user.bot_wins || 0, botLosses: user.bot_losses || 0 } });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role, wins: user.wins, losses: user.losses, botWins: user.bot_wins || 0, botLosses: user.bot_losses || 0, custom_color: user.custom_color || '#2563eb' } });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ error: 'Błąd serwera podczas rejestracji.' });
@@ -117,7 +118,10 @@ app.post('/api/auth/login', async (req, res) => {
         botWins: user.bot_wins || 0,
         botLosses: user.bot_losses || 0,
         hits: user.hits,
-        shots: user.shots
+        shots: user.shots,
+        custom_color: user.custom_color || '#2563eb'
+      }
+    });
       }
     });
   } catch (err) {
@@ -134,6 +138,21 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Error fetching me profile:', err);
     res.status(500).json({ error: 'Błąd pobierania profilu.' });
+  }
+});
+
+// Update preferred fleet color
+app.post('/api/auth/color', authMiddleware, async (req, res) => {
+  try {
+    const { color } = req.body;
+    if (!color) {
+      return res.status(400).json({ error: 'Podaj kolor.' });
+    }
+    const updated = await updateUserColor(req.user.id, color);
+    res.json({ success: true, user: updated, color });
+  } catch (err) {
+    console.error('Error updating color:', err);
+    res.status(500).json({ error: 'Błąd zapisu koloru profilu.' });
   }
 });
 
@@ -600,6 +619,19 @@ io.on('connection', (socket) => {
       color,
       timestamp: Date.now()
     });
+  });
+
+  // Change player ship color during game or placement
+  socket.on('change_fleet_color', ({ color }) => {
+    if (!currentRoomId || !color) return;
+    const room = activeRooms.get(currentRoomId);
+    if (!room) return;
+
+    const player = room.players[playerKey];
+    if (player) {
+      player.color = color;
+      broadcastRoomState(room);
+    }
   });
 
   // Compass feature

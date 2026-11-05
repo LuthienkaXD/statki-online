@@ -85,7 +85,7 @@ class GameRoom {
       userId: user?.id || null,
       isBot: false,
       ready: false,
-      color: 'blue',
+      color: user?.custom_color || 'blue',
       ships: null,
       mines: [],
       shotsGrid: Array.from({ length: this.boardSize }, () => Array(this.boardSize).fill(null)),

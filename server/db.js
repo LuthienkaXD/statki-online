@@ -78,6 +78,9 @@ async function initDb() {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'bot_losses') THEN
           ALTER TABLE users ADD COLUMN bot_losses INT NOT NULL DEFAULT 0;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'custom_color') THEN
+          ALTER TABLE users ADD COLUMN custom_color VARCHAR(30) DEFAULT '#2563eb';
+        END IF;
       END $$;
 
       CREATE TABLE IF NOT EXISTS matches (
@@ -203,7 +206,8 @@ async function initDb() {
         hits INTEGER NOT NULL DEFAULT 0,
         shots INTEGER NOT NULL DEFAULT 0,
         role TEXT NOT NULL DEFAULT 'user',
-        is_banned INTEGER NOT NULL DEFAULT 0
+        is_banned INTEGER NOT NULL DEFAULT 0,
+        custom_color TEXT DEFAULT '#2563eb'
       );
 
       CREATE TABLE IF NOT EXISTS matches (
@@ -303,15 +307,27 @@ async function getUserByUsername(username) {
 async function getUserById(id) {
   if (isPostgres) {
     const res = await pgPool.query(
-      'SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots FROM users WHERE id = $1',
+      'SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots, custom_color FROM users WHERE id = $1',
       [id]
     );
     return res.rows[0] || null;
   }
   const stmt = sqliteDb.prepare(
-    'SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots FROM users WHERE id = ?'
+    'SELECT id, username, role, is_banned, created_at, wins, losses, bot_wins, bot_losses, hits, shots, custom_color FROM users WHERE id = ?'
   );
   return stmt.get(id) || null;
+}
+
+async function updateUserColor(userId, color) {
+  if (isPostgres) {
+    const res = await pgPool.query(
+      'UPDATE users SET custom_color = $1 WHERE id = $2 RETURNING id, username, role, is_banned, wins, losses, bot_wins, bot_losses, hits, shots, custom_color',
+      [color, userId]
+    );
+    return res.rows[0] || null;
+  }
+  sqliteDb.prepare('UPDATE users SET custom_color = ? WHERE id = ?').run(color, userId);
+  return getUserById(userId);
 }
 
 async function createUser(username, passwordHash, role = 'user') {
@@ -929,6 +945,7 @@ module.exports = {
   initDb,
   getUserByUsername,
   getUserById,
+  updateUserColor,
   createUser,
   recordMatch,
   getDailyLeaderboard,

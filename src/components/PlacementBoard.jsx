@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
-export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, options = {}, boardZoom = 100 }) {
+export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, options = {}, boardZoom = 100, initialColor = '#2563eb', onColorChange }) {
   const [placedShips, setPlacedShips] = useState([]);
   const [placedMines, setPlacedMines] = useState([]);
   const [mineMode, setMineMode] = useState(false);
@@ -32,7 +32,13 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
   const [isVertical, setIsVertical] = useState(false);
   const [hoverCoord, setHoverCoord] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [customColor, setCustomColor] = useState('#2563eb');
+  const [customColor, setCustomColor] = useState(initialColor || '#2563eb');
+
+  useEffect(() => {
+    if (initialColor) {
+      setCustomColor(initialColor);
+    }
+  }, [initialColor]);
 
   // Mines are enabled if options.mines is true OR if options.mines is undefined (default enabled)
   const minesEnabled = options.mines !== false;
@@ -423,7 +429,10 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
               id="color-wheel-input"
               type="color"
               value={customColor}
-              onChange={(e) => setCustomColor(e.target.value)}
+              onChange={(e) => {
+                setCustomColor(e.target.value);
+                if (onColorChange) onColorChange(e.target.value);
+              }}
               className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
             />
           </div>
@@ -432,7 +441,11 @@ export default function PlacementBoard({ onReady, isBotGame, boardSize = 10, opt
             {FLEET_COLORS.slice(0, 6).map(color => (
               <button
                 key={color.id}
-                onClick={() => { sounds.playClick(); setCustomColor(color.hex); }}
+                onClick={() => {
+                  sounds.playClick();
+                  setCustomColor(color.hex);
+                  if (onColorChange) onColorChange(color.hex);
+                }}
                 className="w-5 h-5 rounded-full border border-white shadow-xs cursor-pointer hover:scale-110 transition"
                 style={{ backgroundColor: color.hex }}
                 title={color.name}
